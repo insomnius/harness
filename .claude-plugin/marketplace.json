@@ -1,0 +1,17 @@
+{
+  "name": "harness",
+  "owner": { "name": "insomnius" },
+  "metadata": { "description": "Personal coding skills and plugins" },
+  "plugins": [
+    {
+      "name": "design-thinking",
+      "source": "./plugins/design-thinking",
+      "description": "Domain modeling, call-graph tracing, and test-driven implementation"
+    },
+    {
+      "name": "code-smells",
+      "source": "./plugins/code-smells",
+      "description": "Evidence-based code-smell reviews and focused refactoring"
+    }
+  ]
+}

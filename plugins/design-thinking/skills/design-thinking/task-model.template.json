@@ -1,0 +1,146 @@
+{
+  "_": "TEMPORAL, per task. The domain as it was understood WHILE DOING THIS TASK, captured at a commit. Written as `<ref>.<task-slug>.model.json`. It is never edited by a later task and never merged - a later task writes its own snapshot. Recall across tasks is `index.md`, which is DERIVED from every snapshot and regenerated on every write, so it cannot drift. Divergence between snapshots is a finding the index reports, not a conflict to resolve in place.",
+
+  "ticket_ref": "<JIRA-123>",
+  "task_slug": "<kebab-case>",
+  "captured_at_commit": "<git rev-parse HEAD>",
+  "graph_version": "4.0",
+  "created_at": "<ISO8601>",
+  "updated_at": "<ISO8601>",
+
+  "subdomains": [
+    {
+      "name": "",
+      "classification": "core | supporting | generic",
+      "why": "<core: this is the differentiator. supporting: needed, not special. generic: everyone has one>",
+      "investment": "model it | minimum that works | buy or use a library",
+      "contexts": []
+    }
+  ],
+
+  "contexts": [
+    {
+      "name": "",
+      "ours": true,
+      "subdomain": "",
+      "relationship": "shared_kernel | partnership | customer_supplier | conformist | anti_corruption_layer | published_language | separate_ways",
+      "absorbs_change_at": null,
+      "predicted_propagation": "shallow | deep | none | negotiated",
+      "finding": null
+    }
+  ],
+
+  "glossary": [
+    {
+      "term": "<canonical domain term>",
+      "definition": "<one sentence a domain expert would accept>",
+      "context": "<bounded context>",
+      "product_terms": [],
+      "code_terms": [],
+      "dead_aliases": [],
+      "drift": false,
+      "unnamed_in_code": false,
+      "provenance": "mined | invented",
+      "ratified_by": null
+    }
+  ],
+
+  "aggregates": [
+    {
+      "name": "",
+      "context": "",
+      "root": "",
+      "identity": "<branded id type, never a bare string>",
+      "members": [],
+      "invariants": ["<what must hold at every commit>"],
+      "references_by_id": ["<other aggregates, referenced by identity only>"],
+      "consistency": "transactional inside, eventual outside",
+      "nodes": []
+    }
+  ],
+
+  "entities": [
+    { "name": "", "aggregate": "", "identity": "", "transitions": [], "nodes": [] }
+  ],
+
+  "value_objects": [
+    { "name": "", "context": "", "makes_unrepresentable": "<the invalid state this type cannot express>", "nodes": [] }
+  ],
+
+  "domain_services": [
+    {
+      "name": "",
+      "context": "",
+      "purpose": "<the rule that belongs to no single aggregate>",
+      "stateless": true,
+      "nodes": []
+    }
+  ],
+
+  "application_services": [
+    {
+      "name": "",
+      "context": "",
+      "purpose": "<the sequence it coordinates - never a rule>",
+      "coordinates": [],
+      "owns_rules": false,
+      "transaction_boundary": true,
+      "compensations": [],
+      "nodes": []
+    }
+  ],
+
+  "repositories": [
+    {
+      "name": "",
+      "aggregate": "<exactly one aggregate root>",
+      "style": "collection_oriented | persistence_oriented",
+      "nodes": []
+    }
+  ],
+
+  "process_managers": [
+    {
+      "name": "",
+      "context": "",
+      "purpose": "<the long-running flow it drives>",
+      "states": [],
+      "triggers": ["<domain events that advance it>"],
+      "compensations": ["<what undoes a completed step when a later one fails>"],
+      "timeout": null,
+      "nodes": []
+    }
+  ],
+
+  "read_models": [
+    {
+      "name": "",
+      "answers": "<the question it exists to answer, and for whom>",
+      "projected_from": ["<domain events or tables>"],
+      "staleness": "<how far behind it is allowed to be>",
+      "nodes": []
+    }
+  ],
+
+  "anti_corruption_layers": [
+    { "name": "", "foreign_context": "", "translates": "<their model into ours>", "nodes": [] }
+  ],
+
+  "domain_events": [
+    {
+      "name": "<PastTense - a fact, not an intent>",
+      "emitted_by": "<the aggregate whose invariant just held>",
+      "payload": ["<facts, never commands>"],
+      "subscribers_known": [],
+      "seam_id": null
+    }
+  ],
+
+  "seams": [
+    { "id": "seam:<kind>:<address>", "contract": null, "compatibility": "additive | breaking | unknown", "far_side": null }
+  ],
+
+  "open_questions": [
+    { "question": "", "raised_by_ticket": "", "blocks": null, "ratified_by": null }
+  ]
+}

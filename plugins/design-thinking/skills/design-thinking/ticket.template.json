@@ -1,0 +1,100 @@
+{
+  "_": "DERIVED from .design/<ref>.log.jsonl - do not edit; the next decision rebuilds it. Tier 0-1 for ONE ticket, folded from the log and written beside it in a flat .design/ directory as `<ref>.json`. Closing sets `status: closed`; nothing is moved or deleted, and every per-task snapshot stays where it is. This is the shape of the fold, not a form to fill in.",
+
+  "graph_version": "4.0",
+  "ticket": "<title as the PM wrote it>",
+  "ticket_ref": "<JIRA-123 / issue url>",
+  "status": "open | closed",
+  "created_at": "<ISO8601>",
+  "updated_at": "<ISO8601>",
+  "opened_at_commit": "<sha>",
+  "current_requirement": "R1",
+  "current_task": "T1",
+  "current_phase": "preflight",
+  "skipped_phases": [{ "phase": "", "why": "<predicate did not hold>" }],
+
+  "checks": {
+    "unit":       { "cmd": "", "expect_green_before_change": true },
+    "contract":   { "cmd": "", "expect_green_before_change": true },
+    "acceptance": { "cmd": "", "expect_green_before_change": false },
+    "lint":       { "cmd": "" },
+    "baseline_failures": ["<what was already red before this work started>"]
+  },
+
+  "requirements": [
+    {
+      "id": "R1",
+      "statement": "<one verifiable expectation, observable from outside>",
+      "source_quote": "<the ticket's own words>",
+      "depends_on": [],
+      "acceptance": {
+        "altitude": "browser | http | cli | event | workflow | data",
+        "harness": "<whatever suits that altitude>",
+        "spec": "<path to the committed spec>",
+        "cmd": "<exact command, mirrored into checks.acceptance>",
+        "red_evidence": { "command": "", "exit_status": null, "failure": "" },
+        "assertions": [
+          { "asserts": "", "from_ambiguity": null }
+        ],
+        "automatable": true,
+        "manual_closure": { "who": null, "evidence": null }
+      },
+      "turns": 0,
+      "turn_log": [
+        { "turn": 1, "changed": [], "acceptance": "red | green", "diagnosis": "", "new_information": "" }
+      ],
+      "status": "todo | tracing | implementing | verifying | done | blocked | descoped",
+      "satisfied_by_behaviors": ["<B ids, with the trace file they live in>"],
+      "verified_by": ["<test ids proving those behaviors>"],
+      "blocked_reason": null
+    }
+  ],
+
+  "ambiguity_register": [
+    {
+      "id": "A1",
+      "requirement_id": "R1",
+      "question": "<what the ticket does not answer>",
+      "expectation": "<the behavior being assumed>",
+      "basis": "asked_user | existing_code_precedent | product_docs | assumed",
+      "verified_by": null,
+      "risk_if_wrong": "<one line>",
+      "outcome": "pending | matched | corrected | escalated"
+    }
+  ],
+
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "",
+      "slug": "<task-slug>",
+      "requirement_id": "R1",
+      "parent_task": null,
+      "depends_on": [],
+      "blocked_by": [],
+      "status": "todo | tracing | implementing | verifying | done | blocked",
+      "trace_file": ".design/<ticket-ref>.<task-slug>.trace.json",
+      "languages": []
+    }
+  ],
+
+  "requirement_restatements": [
+    {
+      "requirement_id": "R1",
+      "in_ubiquitous_language": "",
+      "assigned_to": "<name from model.json>",
+      "assigned_role": "aggregate_root | domain_service | application_service | repository | process_manager | read_model | anti_corruption_layer"
+    }
+  ],
+
+  "reversals": [
+    { "what": "<node path or behavior id>", "from": "", "to": "", "why": "<what moved it>", "at": "<ISO8601>" }
+  ],
+
+  "retrospective": {
+    "effective_keywords": [],
+    "dead_end_keywords": [],
+    "weakest_phase": null,
+    "trace_corrections_count": 0
+  }
+}

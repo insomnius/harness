@@ -1,0 +1,236 @@
+{
+  "task_id": "T1",
+  "requirement_id": "R1",
+  "task_slug": "<kebab-case>",
+  "graph_version": "4.0",
+  "created_at": "<ISO8601>",
+  "updated_at": "<ISO8601>",
+  "current_phase": "keyword",
+  "phases_done": [],
+
+  "traced_at_commit": "<git rev-parse HEAD>",
+  "last_revalidated_at": null,
+
+  "keyword": {
+    "keywords": [],
+    "is_greenfield": false,
+    "analogue_feature": null
+  },
+
+  "seeds": [
+    { "path": "", "symbol": "", "why": "", "keyword": "" }
+  ],
+  "rejected_hits": [
+    { "path": "", "why_not": "" }
+  ],
+
+  "nodes": [
+    {
+      "path": "",
+      "service": "<this repo's service name, or the far-side service for a crossed node>",
+      "package": "",
+      "language": "go | ruby | typescript | python | bash | github_actions | sql | yaml",
+      "role": "entrypoint | handler | application_service | aggregate_root | entity | value_object | domain_service | repository | process_manager | anti_corruption_layer | read_model | adapter | util | script | workflow | migration | config | fixture | test",
+      "aggregate": "<aggregate this node belongs to, or null>",
+      "context": "<bounded context>",
+      "purpose": "<one sentence: the single reason this node exists, as a capability in domain language>",
+      "purpose_source": "read_from_code | read_from_tests | asked_user",
+      "discovered_via": "keyword | up_from:<path> | down_from:<path> | manual",
+      "depth": 0,
+      "verdict": "change | no_change | unsure",
+      "stop_reason": null,
+      "fan_in": null,
+      "fingerprint": {
+        "blob_sha": "",
+        "contract_hashes": {}
+      },
+      "drift": {
+        "checked_at_commit": null,
+        "outcome": "not_checked | contract_intact | contract_drifted | node_moved | node_gone | invariant_broken | seam_drifted",
+        "note": null
+      },
+      "symbols": [
+        {
+          "symbol": "",
+          "verdict": "change | no_change | unsure",
+          "reason": "",
+          "contract": {
+            "signature": "",
+            "errors": [{ "name": "", "policy": "retry | fallback | propagate | die" }],
+            "deps": [],
+            "effects": [],
+            "cardinality": "one | many | time_bounded",
+            "hash": ""
+          },
+          "contract_delta": {
+            "inputs": "unchanged",
+            "outputs": "unchanged",
+            "errors": "unchanged",
+            "deps": "unchanged",
+            "effects": "unchanged"
+          },
+          "propagates": false,
+          "behavior_ids": [],
+          "channels": {
+            "shapes": { "records": [], "ids": [], "variants": [], "errors": [] },
+            "A": { "flow": [], "in": "", "out": "" },
+            "cardinality": "one | many | time_bounded",
+            "cardinality_decisions": { "ordering": null, "backpressure": null, "mid_stream_failure": null, "cache_key": null, "ttl": null, "dedupe": null },
+            "E": [
+              { "break_point": "", "error": "", "policy": "retry | fallback | propagate | die", "bound": null, "loss": null, "maps_to": "" }
+            ],
+            "E_outward_vocabulary": [],
+            "divergent_strategies": [],
+            "R": [
+              { "needs": "", "because": "we cannot <X> without <Y>", "provided_by": "constructor | parameter | layer | container", "hidden": false }
+            ],
+            "boundary": { "untrusted_input": null, "parse_point": null, "trusted_shape": null },
+            "layers": [],
+            "scope": [ { "acquires": "", "released_by": "" } ],
+            "substitutable_with_r_only": null,
+            "split_proposal": null
+          },
+          "contract_actual": null,
+          "passes": {
+            "A": "todo | done",
+            "A_recheck": "todo | done",
+            "E": "todo | done",
+            "finalize": "todo | done"
+          }
+        }
+      ]
+    }
+  ],
+
+  "behaviors": [
+    {
+      "id": "B1",
+      "statement": "<given <condition>, the caller sees <result>>",
+      "kind": "happy | error | boundary | concurrency | effect",
+      "path": "",
+      "symbol": "",
+      "serves_purpose": true,
+      "misplaced_reason": null,
+      "enforces_invariant": null,
+      "owned_by": "<name from model.json: aggregate, domain service, application service, process manager>",
+      "test_name": "<the SAME sentence as `statement` - principle 8b>",
+      "requirement_ids": [],
+      "verdict": "new | modified | unchanged | removed",
+      "policy": null,
+      "tests": [],
+      "found_in": "trace | test | A_recheck | retrace",
+      "gate_passed": false,
+      "status": "todo | specified | red | gated | green"
+    }
+  ],
+
+  "seams": [
+    {
+      "id": "seam:http:POST /v2/refunds",
+      "kind": "http | rpc | graphql | topic | queue | table | cache | object_store | config | env | dns | feature_flag",
+      "provider": "<service>",
+      "our_side": "provider | consumer | both",
+      "artifact": "<path to openapi/proto/schema/migration, or null if the contract is implicit>",
+      "contract": {
+        "shape": "",
+        "errors": [],
+        "translation": { "outward": {}, "inward": {} },
+        "semantics": { "idempotent": null, "ordering": null, "delivery": null, "timeout": null },
+        "auth": ""
+      },
+      "consumers_known": [
+        { "who": "", "found_via": "artifact | generated_client | code_search | gateway_config | telemetry | contract_test", "reachable": false }
+      ],
+      "consumers_provable": false,
+      "compatibility": { "direction": "backward | forward | both | breaking", "why": "" },
+      "context_relationship": "shared_kernel | partnership | customer_supplier | conformist | anti_corruption_layer | published_language | separate_ways",
+      "acl_node": null,
+      "deploy_order": "provider_first | consumer_first | either | lockstep",
+      "provider_version_at_trace": "<image tag, release, or artifact hash>",
+      "verified_by": "<contract test, CI schema check, or staging call>",
+      "far_side_reachable": false,
+      "far_side_nodes": []
+    }
+  ],
+
+  "deploy_sequence": [
+    { "step": 1, "what": "", "side": "provider | consumer", "seam_id": "", "safe_window": "old consumer vs new provider: ok | new consumer vs old provider: ok" }
+  ],
+
+  "misplaced": [
+    {
+      "behavior_id": "",
+      "reached_node": "",
+      "reached_node_purpose": "",
+      "belongs_in": "<path, or 'new node: <proposed path>'>",
+      "why": "",
+      "resolution": "moved | purpose_widened | pending"
+    }
+  ],
+
+  "split_candidates": [
+    { "path": "", "purposes_found": [], "behaviors_by_purpose": {}, "follow_up_task": null }
+  ],
+
+  "edges": [
+    {
+      "from": "",
+      "to": "",
+      "via": "",
+      "kind": "calls | imports | invokes | requests | publishes | subscribes | reads_writes | provisions",
+      "seam_id": null,
+      "direction": "up | down",
+      "evidence": "lsp_references | compiler | static_tool | grep | manual"
+    }
+  ],
+
+  "frontier": [
+    { "path": "", "from": "", "direction": "up | down", "stop_reason": "ABSORBED | MISPLACED | CROSSING | OPAQUE | VISITED | COMPLETE_UP | COMPLETE_DOWN | PASS_THROUGH | NO_ABSORPTION | pending" }
+  ],
+  "cycles": [],
+
+  "unsure": [
+    { "path": "", "symbol": "", "question": "", "needs": "read_code | experiment | user", "resolved_as": null }
+  ],
+
+  "no_change_invariants": [
+    { "path": "", "symbol": "", "must_remain_true": "", "covered_by_test": null, "still_holds": true }
+  ],
+
+  "ordered_change_set": [
+    {
+      "n": 1,
+      "path": "",
+      "symbol": "",
+      "scenarios": [
+        { "behavior_id": "B1", "name": "", "kind": "happy | error | boundary | concurrency | effect", "found_in": "test | A_recheck", "test": "", "status": "not_written | failing | green" }
+      ],
+      "pinned_nondeterminism": [],
+      "test_files": [],
+      "status": "todo | annotating | testing | gated | implementing | retracing | done",
+      "surprises": []
+    }
+  ],
+  "expand_contract_migrations": [],
+
+  "gate_ledger": [
+    {
+      "behavior_id": "",
+      "path": "",
+      "symbol": "",
+      "checks_passed": [],
+      "checks_failed": [],
+      "checks_na": [],
+      "red_evidence": { "command": "", "exit_status": null, "failure": "" },
+      "baseline_failures_at_start": null,
+      "commit": "",
+      "at": ""
+    }
+  ],
+
+  "trace_corrections": [
+    { "at": "", "path": "", "wrong_verdict": "", "trigger": "no_change_broke | untraced_caller | contract_mismatch | drift", "correction": "" }
+  ],
+
+  "notes": []
+}

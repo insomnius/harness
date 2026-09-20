@@ -1,0 +1,18 @@
+{
+  "name": "code-smells",
+  "version": "0.2.0",
+  "description": "Evidence-based code-smell reviews and focused refactoring, informed by Refactoring.Guru",
+  "author": {
+    "name": "insomnius"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Code Smells",
+    "shortDescription": "Review code smells with concrete evidence.",
+    "longDescription": "Identify maintenance costs, avoid mechanical diagnoses, and suggest focused refactorings using Refactoring.Guru's taxonomy.",
+    "developerName": "insomnius",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Use $code-smells to review this change for actionable maintainability issues."
+  }
+}

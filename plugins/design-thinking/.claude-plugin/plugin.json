@@ -1,0 +1,5 @@
+{
+  "name": "design-thinking",
+  "description": "Trace the existing call graph before changing it - DDD names the shapes, the graph carries the change, TDD proves it. Append-only decision log, five tiers, two gates, and a rendered graph on every write",
+  "version": "2.1.5"
+}

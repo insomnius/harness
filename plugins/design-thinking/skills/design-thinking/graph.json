@@ -1,0 +1,1744 @@
+{
+  "$schema_version": "3.0",
+  "name": "design-thinking",
+  "description": "Tiered graph traversal for changing existing systems. Requirement -> task -> file -> symbol. Trace before changing, test before implementing, re-trace after changing, revalidate against drift.",
+  "dependencies": {
+    "note": "Two third-party skills this one hands off to. Declared here because this file is what the skill reads; packaging alone cannot guarantee presence. Both are optional in the sense that the method stands without them, and neither may override a gate.",
+    "required": [
+      {
+        "skill": "ponytail",
+        "source": "DietrichGebert/ponytail",
+        "role": "Lazy-senior-dev minimality: the shortest solution that actually works. YAGNI, platform and stdlib before dependencies, no unrequested abstraction. Marks each shortcut with a `ponytail:` comment naming its upgrade path.",
+        "handoff_phases": {
+          "language": "The earliest handoff, and the only one that can end the ticket rather than shrink a change set: a context classified `generic` is where ponytail's question - does this need to exist at all? - is answered no most often. Investment follows subdomain (principle 17b), so the honest output here is sometimes 'use a library, close the ticket'.",
+          "locate": "Before seeding new nodes, ask ponytail's question: does the platform, stdlib or framework already do this? A capability that exists needs no node. This is prior-art search with teeth.",
+          "greenfield": "Same question again, harder. The cheapest new node is the one not created because something native covers it.",
+          "triage": "Among candidate change sets, prefer the one touching fewest nodes and adding no abstraction. Minimality is a tie-breaker between valid options, never a reason to skip a node the trace says must change.",
+          "implement:A": "Write the smallest happy path that turns the behavior green.",
+          "retrace": "Run ponytail-review over the diff. What it proposes deleting is checked against the behavior list: code no behavior asked for is deletable, code a behavior asked for is not."
+        },
+        "reconcile": {
+          "ponytail_comments_are_accepted_debt": "A `ponytail:` shortcut comment names an upgrade path, which is exactly this method's accepted_debt. Record each one in state at `implement:finalize` with its upgrade path, so a shortcut is a tracked decision rather than a comment nobody re-reads.",
+          "deletion_is_bounded_by_behaviors": "ponytail-review may propose deleting anything no behavior claims. It may not propose deleting an error policy, a boundary parse, a scoped release or a test - those exist because a behavior or a gate check demanded them."
+        }
+      },
+      {
+        "skill": "caveman",
+        "source": "JuliusBrussee/caveman",
+        "role": "Output compression: strips articles, filler, hedging and pleasantries from prose. Code blocks and error messages are quoted exactly, which is what makes it safe here.",
+        "handoff_phases": {
+          "reporting": "Applies to the narration around the graph - the sentences explaining a verdict, a route, a trade-off. The status tree is a code block and survives untouched."
+        },
+        "must_not_compress": [
+          "the status tree - it is the report, not commentary on it",
+          "gate verdicts and which check failed - a compressed refusal is an unclear refusal",
+          "red evidence: the command, exit status and failure message, quoted verbatim",
+          "the expected-versus-observed line on a red check, which is what the next decision turns on",
+          "a falsified assumption reported to the user - the highest-value output of the loop, and the one most damaged by terseness",
+          "anything escalated for a human decision"
+        ],
+        "honest_note": "In ponytail's own agentic benchmark, caveman's prose compression did not reduce total tokens - it measured slightly above the no-skill baseline on tokens, cost and time, because agentic cost is dominated by reading and tool use rather than by prose. Use it because the noise annoys you, not as a cost strategy."
+      }
+    ],
+    "precedence_over_dependencies": "Both gates outrank both skills. ponytail may not waive an annotated contract, an error policy, a boundary parse, a scoped release or a red test - minimality governs how much code is written, never what must be specified. caveman may not compress a gate verdict, a check failure or an escalation. Where either skill's instruction conflicts with a gate, the gate wins and the conflict is stated out loud rather than resolved silently.",
+    "resolution": {
+      "atomic": "The stronger guarantee: vendor both skills into the same plugin so installing it cannot produce a partial set. Not the route boon-plugins takes - both upstreams move quickly, so vendoring means owning the copies. See `separate`.",
+      "separate": "Or install each from its own upstream marketplace and document the trio. Then rely entirely on preflight.",
+      "runtime": "Either way, `preflight` checks for them at session start and degrades explicitly rather than failing mid-task."
+    }
+  },
+  "phase_applicability": {
+    "note": "There are no lanes. A lane is a mode someone has to pick, and the picking is where the judgment leaks out. Instead every phase carries a predicate over the change itself, computed once the trace exists, so a one-line fix runs a handful of phases and a cross-service migration runs all of them - without anyone choosing.",
+    "always": [
+      "preflight",
+      "requirements",
+      "acceptance",
+      "keyword",
+      "locate",
+      "trace",
+      "triage",
+      "test",
+      "gate",
+      "implement",
+      "retrace",
+      "verify_requirement",
+      "close"
+    ],
+    "conditional": {
+      "language": "Runs fully when any term in the requirement is missing from the glossary, or a context boundary is involved. When every term already resolves, it degenerates to a glossary lookup - not a skip, a cheap pass.",
+      "cross": "Only when a seam appears on the change path. No seam, no phase.",
+      "channels": "Full annotation when the symbol's contract changes. For a body-only change, annotate only the delta: the break points added or removed, and any new dependency. Nothing propagates from a body change, so re-annotating an unchanged contract is theatre.",
+      "flow_annotation": "Only when more than one node changes, or the requirement spans a process boundary. A single-node change is its own flow.",
+      "order": "Only when more than one node changes, or a deploy sequence is implied by a seam.",
+      "revalidate": "On resume, after any fetch or rebase, and before the first edit of a session. Skipped inside a single continuous session with no upstream fetch."
+    },
+    "never_conditional": [
+      "acceptance",
+      "gate"
+    ],
+    "why_the_gates_are_exempt": "Both gates are cheap on a small change - a one-line fix has one behavior, so one red test and one contract annotation. The saving from skipping them is minutes; the cost is the whole point of the method. Anything that skips a gate is not a lighter version of this method, it is a different one.",
+    "report_it": "State which conditional phases were skipped and why, once, in the first status tree. A phase silently not run is indistinguishable from a phase forgotten."
+  },
+  "precedence": {
+    "order": [
+      "axioms",
+      "loop.closure_rule",
+      "gates",
+      "phases",
+      "mechanics"
+    ],
+    "rule": "The axioms are the method. Phases are how the axioms get applied in order. Mechanics - the commands, tools and greps in the reference files - are illustrations for the stacks that happened to be written down, and they are the first thing to adapt or discard.",
+    "when_a_mechanic_conflicts_with_a_principle": "The principle wins. Find the mechanic that serves it in this stack, and if none exists, say so and reason from the principle directly rather than forcing the recipe.",
+    "when_a_stack_is_not_covered": "Nothing changes. Ask the principle's question - who calls this, where does it break, what does it need, is it substitutable - and find that stack's way of answering. A language with no compiler still has an R; it is just written down instead of proven.",
+    "the_gates_are_not_tunable": "Both gates - a red acceptance check before work on a requirement, a red unit test and an annotated contract before code for a behavior - are constraints, not guidance. Everything else can be tuned to taste."
+  },
+  "reporting": {
+    "rule": "Report as a graph, always, and as a MULTI-LEVEL tree - not a flat list. Sibling bullets under a requirement hide who calls whom, which is the only thing the X -> Y -> Z notation exists to show. Nesting also carries the edit order, since callees-before-callers is only legible when the nesting is visible. Prose explains the tree; it does not replace it.",
+    "tree": {
+      "spans": "one tree across all five tiers: requirement > task > node chain > symbol > behaviors. Indentation is call depth, not category.",
+      "root": "the entrypoint-most node reached in the trace - the topmost X. The seed sits somewhere in the middle and is marked, since it is where the search landed, not where the flow starts.",
+      "depth_labels": "signed, relative to the seed: d-2, d-1, d0 (seed), d+1, d+2. Upstream is negative. This is what makes the caller/callee direction unambiguous once nesting is deep.",
+      "order_markers": "the node's position in the ordered change set, as #1, #2, #3. The tree shape plus these markers is the whole edit plan - a node numbered lower than its own parent is the normal case, and a node numbered higher than a child it depends on is a mistake worth seeing.",
+      "edge_glyphs": {
+        "→": "calls or imports - in-process",
+        "⋯>": "invokes - another process on the same host: workflow runs script, script runs binary",
+        "⇉": "requests - a network seam: HTTP, RPC, GraphQL",
+        "⇄": "reads_writes - shared state: table, topic, cache, bucket, env",
+        "⊢": "provisions - infra defining runtime behavior: IaC, manifests, gateway, flags"
+      },
+      "dedup": "A node reached by two parents is expanded once, at its first appearance, and referenced elsewhere as `↩ path (expanded above)`. Expanding it twice doubles the tree and hides that it is shared - and shared nodes are exactly the ones whose contract must not change casually.",
+      "cycles": "marked `↺ path` at the point of recurrence, never followed.",
+      "rollup": "A subtree with nothing changing in it collapses to one line with a count: `⊘ pkg/… ⊕ 6 nodes absorbed`. A subtree that is entirely done collapses to `✓ … ⊕ 4 nodes · 9 behaviors`. Detail is spent on what is in motion.",
+      "far_side": "Nodes past a seam keep nesting, prefixed with their service: `payments:internal/ledger/api.go`. The seam node itself sits between them as the parent, since it is what has the contract."
+    },
+    "view_budget": {
+      "why": "A node cap is a hope, not an algorithm. Two people rendering the same trace should produce the same view, and the node in motion should never be the thing that got trimmed.",
+      "budget": "28 printed lines for the tree, excluding the header, the legend and the failure line. Tune it, but fix it - an unbounded tree buries its own point.",
+      "default_scope": "The CHANGED SUBGRAPH ONLY. Draw the nodes that change, the path connecting them, and one hop of absorption frontier. Everything else is omitted, not collapsed - a node that was traced and found irrelevant does not earn a line every time the graph is printed.",
+      "algorithm": [
+        "1. ALWAYS KEEP: the spine from the entrypoint down to the node in motion, at full detail. Never collapsed, whatever it costs.",
+        "2. ALWAYS KEEP: every node with verdict change or unsure, every seam on the change path, every drift, every misplacement. These are the decisions.",
+        "3. ALWAYS KEEP: the absorption frontier - absorbed nodes ADJACENT to a changing node. These are the ones that prove where the change stopped, and they are the reviewable part of the analysis.",
+        "4. OMIT ENTIRELY: absorbed nodes beyond the frontier, untouched subtrees, and anything traced but unaffected. One summary line carries them: `⊕ 14 nodes traced, unaffected (L2-full to show)`. They stay in the trace file; they just do not get drawn.",
+        "5. THEN COLLAPSE, in this fixed order, until the budget is met: finished sibling subtrees to `✓ … ⊕ n nodes · m behaviors`; then frontier siblings to `⊘ … ⊕ n absorbed`; then depth beyond d±2 on branches not containing the node in motion.",
+        "6. IF STILL OVER: package rollup - group by package or directory, one line each with per-status counts, keeping rule 1's spine expanded inside its own package."
+      ],
+      "why_omit_rather_than_collapse": "The absorbed set grows with every trace and never shrinks. Collapsing it to counts still spends lines on nodes nobody is deciding about, and re-printing them each turn trains the reader to skim the whole graph. Omission with a single count keeps the drawing about the change while the evidence stays in the state file, one command away.",
+      "on_request": "`L2-full` draws everything traced, including the unaffected. Useful at review time and when a reviewer asks why a node was ruled out - not the default.",
+      "expanders": "every collapsed group states what it hides and what it would take to see it: `⊕ 6 nodes absorbed (L3 to expand)`. A view the reader cannot un-collapse is a view they cannot trust.",
+      "determinism": "Collapse order is fixed, so the same state renders the same view every time. Never collapse by 'what seems less important'."
+    },
+    "levels": {
+      "L0": "requirement only, with check results. For a status question.",
+      "L1": "requirements and tasks.",
+      "L2": "the node tree with statuses. The default.",
+      "L3": "node tree plus symbols.",
+      "L4": "node tree plus symbols plus behaviors, gates and channels.",
+      "default": "L2 for the whole tree, with the node currently in motion expanded to L4. Everything else stays collapsed - a full L4 tree of a real trace is unreadable and buries the one node that matters."
+    },
+    "when": [
+      "every phase transition",
+      "before the first edit of a requirement - the graph delta is what the user reviews",
+      "after each behavior closes",
+      "at every loop close, showing the check results on the graph",
+      "on resume, before doing anything else"
+    ],
+    "format": {
+      "in_conversation": "compact indented node graph with status glyphs. One screen or less.",
+      "in_artifact": "Mermaid in `.design/<ref>.<task-slug>.graph.md` (one per task), regenerated on every state write",
+      "never": "a prose paragraph describing what changed, with no graph"
+    },
+    "status_glyphs": {
+      "done": "✓",
+      "in_progress": "◐",
+      "todo": "○",
+      "no_change": "⊘",
+      "unsure": "?",
+      "blocked_or_drifted": "⚠",
+      "misplaced": "⊗",
+      "seam": "⇉",
+      "check_red": "✗",
+      "not_gated": "—"
+    },
+    "must_show": [
+      "node status",
+      "behavior ids and their state",
+      "gate state",
+      "seams with compatibility",
+      "no_change nodes and why",
+      "drift",
+      "loop turn and acceptance result"
+    ],
+    "legend": "Emit once per conversation, not on every report.",
+    "trigger": "Every state write. The CLI renders after each decision and the hook renders after any other write under .design/, so the tree is not something the agent remembers to print. Phase transitions, first edit of a requirement, behavior close, loop close and resume are all state writes."
+  },
+  "loop": {
+    "note": "Work is a loop, not a pipeline. One turn of the loop takes one natural-language requirement and ends when an automated check says it is satisfied.",
+    "turn": [
+      {
+        "stage": "decipher",
+        "phases": [
+          "requirements",
+          "language",
+          "keyword",
+          "locate",
+          "trace",
+          "cross",
+          "triage",
+          "order"
+        ],
+        "produces": "a graph delta: which nodes, symbols and behaviors change, in what order"
+      },
+      {
+        "stage": "specify",
+        "phases": [
+          "acceptance",
+          "channels",
+          "test"
+        ],
+        "produces": "an executable statement of done at both altitudes - a red acceptance check for the requirement, red unit tests for each behavior"
+      },
+      {
+        "stage": "gate",
+        "phases": [
+          "gate"
+        ],
+        "produces": "a ledger entry per behavior. Nothing is written before this"
+      },
+      {
+        "stage": "change",
+        "phases": [
+          "implement",
+          "retrace"
+        ],
+        "produces": "code, plus corrections to the graph delta discovered while writing it"
+      },
+      {
+        "stage": "close",
+        "phases": [
+          "verify_requirement"
+        ],
+        "produces": "the acceptance check running green on its own. Closure is observed, never asserted"
+      }
+    ],
+    "closure_rule": "A requirement is closed by an automated check going from red to green, not by an agent judging that it looks done. If the requirement cannot be expressed as an automated check, say so explicitly and get the human to close it - do not close it yourself.",
+    "halt_condition": {
+      "note": "A turn count is the wrong measure. Three turns each finding something new is progress; two turns finding the same thing is a loop that will not close, and waiting for a third is wasted. Halt on absence of new information, not on arithmetic.",
+      "new_information_is": [
+        "a different acceptance failure, or the same failure with a materially different diagnosis",
+        "a node discovered that the trace had missed",
+        "a behavior discovered during implementation",
+        "an assumption falsified",
+        "an `unsure` resolved"
+      ],
+      "halt_when": "A turn ends with the acceptance check red and produced none of the above. That is the signal, and it can fire on turn two.",
+      "on_halt": "Stop and report: the expected-versus-observed diff, what changed each turn, and the likeliest misreading of the requirement itself. Then ask. A repeated identical failure is evidence about the requirement, not about the code.",
+      "continuing_is_legitimate": "While each turn yields new information, keep going - a genuinely tangled requirement can take five turns and every one of them earns its place. What is not legitimate is re-running the same change hoping for a different result.",
+      "runaway_guard": "A ceiling of 8 turns exists so a pathological loop terminates, but reaching it means the halt condition above was not being evaluated honestly."
+    },
+    "loop_carries_forward": "Each turn updates the glossary, the context map and the vocabulary. The next requirement starts warmer than the last - that is the compounding benefit of the loop over one-off work."
+  },
+  "axioms": [
+    "Work is a loop: natural language in, a graph delta in the middle, a green automated check out.",
+    "A requirement is closed by an automated check flipping red to green. An agent deciding that something looks finished is not closure.",
+    "The acceptance check is written before any work on the requirement, at the altitude where the requirement is observable - browser, HTTP, CLI, event, or CI run.",
+    "Each ambiguity's assumed expectation becomes an assertion in the acceptance check, so a wrong assumption fails automatically instead of surviving to review.",
+    "The graph already exists in the repository. Discover it, do not invent it.",
+    "Notation is always X -> Y -> Z. Y is the node in hand, X calls Y, Y calls Z.",
+    "Expansion stops at absorption, not at a depth limit.",
+    "`unsure` is a verdict. It must be resolved, never defaulted to no_change.",
+    "Every node carries three channels: A, what flows through on success; E, where it can break and what happens then; R, what it needs to exist. Annotate all three before writing the node.",
+    "Think A first. The happy path is the call graph, and it must be readable without wading through error handling.",
+    "Errors are values in the E channel, not control flow. Each break point gets one policy: retry, fall back, propagate, or die.",
+    "Each layer scopes its own E. A layer enumerates what it received and maps it into its own vocabulary; it never leaks the vocabulary of three layers down.",
+    "Trust nothing at the boundary, everything inside. Parse unknown into trusted once, at the edge, with one definition serving as type, validator and transformer.",
+    "Cross-cutting behavior - retry, timeout, logging, tracing, caching - wraps a node without changing its graph.",
+    "Resource acquisition and release are structural guarantees tied to a scope, never a comment hoping someone remembers.",
+    "A node is testable by substituting R, with the graph unchanged. If you have to mock the world to test one node, the node is doing too much.",
+    "The code is the graph. If the code does not match the annotated graph, the implementation is wrong - not the graph.",
+    "A product requirement is translated into the domain's ubiquitous language before it is translated into code. Untranslated product terms are the main source of misplaced behavior.",
+    "One term, one meaning, one context. Two names for one concept is debt; one name for two concepts is a bug waiting.",
+    "Aggregates own invariants and are the unit of transactional consistency. A behavior enforcing an invariant belongs in the aggregate that owns it, never in the application service that calls it.",
+    "Application services coordinate sequence and own no business rules; a process manager coordinates across transactions and owns none either. A rule found in either is misplaced, and domain_schema.role_routing names where it goes.",
+    "The relationship between two bounded contexts predicts how far a foreign change propagates. An anti-corruption layer absorbs it; being conformist means it reaches your domain.",
+    "The graph does not stop at the process boundary. It continues over HTTP, RPC, queues, databases and config into other services, other repos and other layers. Only the tracing mechanics change.",
+    "A seam is a node: an endpoint, an RPC method, a topic, an event schema, a table, a config key. It has its own contract and can drift while the code on both sides stays still.",
+    "Crossing a layer translates the contract, errors most of all. A domain error becomes a status code at an HTTP seam and a retry or dead letter at a queue seam. The translation is part of the seam's contract.",
+    "In-process, the caller set is provable. Across a published seam it is not. For provider-side changes, prefer a backward-compatible contract over a complete upstream trace, because completeness is not available.",
+    "Every node has exactly one purpose. A change that reaches a node whose purpose does not cover it is misplaced, not absorbed.",
+    "Behavior is the unit of verification: requirements are satisfied by behaviors, behaviors are proven by tests. Files and symbols are only addresses.",
+    "No production code is written for a behavior until its contract is annotated and its test is red for the intended reason. This is the method's one hard gate; every other rule is guidance.",
+    "Implement in passes: happy path, then re-check scenarios, then errors, then finalize. Never all at once. A pass is a behavior kind, not a stage.",
+    "The graph mutates as you edit it. Re-trace after every changed node.",
+    "One requirement is closed and verified before the next is started.",
+    "A traced node is only trustworthy at the commit it was traced against. Others' changes invalidate it.",
+    "A failing test on a no_change node means the trace was wrong, not the test."
+  ],
+  "tiers": {
+    "0_requirement": {
+      "node": "one verifiable expectation from the ticket",
+      "id": "R<n>",
+      "fields": [
+        "statement",
+        "source_quote",
+        "ambiguities[]",
+        "expectations[]",
+        "status",
+        "verified_by[]"
+      ],
+      "edges": [
+        "derived_from (ticket)",
+        "depends_on (R<n>)",
+        "owns (tasks)"
+      ],
+      "status_enum": [
+        "todo",
+        "tracing",
+        "implementing",
+        "verifying",
+        "done",
+        "blocked",
+        "descoped"
+      ]
+    },
+    "1_task": {
+      "node": "a unit of work that closes one requirement, or part of one",
+      "id": "T<n>[.<m>] for sub-tasks",
+      "fields": [
+        "title",
+        "requirement_id",
+        "parent_task",
+        "status",
+        "trace_file",
+        "blocked_by"
+      ],
+      "edges": [
+        "depends_on (T<n>)",
+        "owns (file nodes)"
+      ],
+      "note": "Sub-tasks exist when a requirement spans layers or repos. Dependencies between tasks are what determine order, not the ticket's bullet order."
+    },
+    "2_file": {
+      "node": "one file. Its repo-relative path is its id.",
+      "fields": [
+        "path",
+        "package",
+        "language",
+        "role",
+        "purpose",
+        "verdict",
+        "depth",
+        "discovered_via",
+        "stop_reason",
+        "fan_in",
+        "fingerprint"
+      ],
+      "purpose": {
+        "definition": "One sentence stating the single reason this node exists, in domain language. Written as a capability, not a category: 'decides whether a refund is permitted and records it', not 'refund helpers'.",
+        "rules": [
+          "One purpose per node. If the honest statement needs 'and' between two unrelated capabilities, the node is two nodes.",
+          "Every behavior in the node must serve its purpose. A behavior that does not is misplaced.",
+          "A purpose so generic that any change fits it ('shared utilities', 'helpers') is not a purpose. Such nodes attract everything and are the fan-out problem at its root.",
+          "Purpose is inferred from the code and its tests on first trace, then recorded. It is not invented for the node."
+        ],
+        "widening_is_not_the_agent's_to_grant": {
+          "problem": "An escape hatch reachable without approval is the path of least resistance, and it is how a node's purpose quietly becomes 'whatever landed here'.",
+          "rule": "The agent has exactly two options for a misplaced behavior: place it in a node whose purpose already covers it, or create a node whose purpose does. Widening an existing purpose is a third option only a human can take.",
+          "to_request_it": "Record the current purpose, the proposed purpose, the behavior forcing the change, what else the wider purpose would then admit, and `ratified_by: null`. Then take the placement option and continue - do not block the task on it.",
+          "if_ratified": "Update the purpose, note the ratifier and the date, and re-check every behavior already in the node against the new statement - widening usually admits things nobody intended.",
+          "if_never_ratified": "The request stays open in state and is listed at `close`. An unratified widening request against the same node twice is a split_candidate, and the second occurrence is the argument."
+        },
+        "used_for": [
+          "Triage: does this change belong here, or is it merely reachable from here?",
+          "Cohesion: do all behaviors serve one purpose, or should the node split?",
+          "Placement: where should a genuinely new behavior go? The node whose purpose already covers it."
+        ]
+      },
+      "note": "Non-code files are nodes too, and they have purposes: workflow YAML, shell scripts, migrations, config, fixtures, generated clients. Nodes outside this repo are addressed as `<service>:<path>`, and a node may be a seam rather than a file - see seam_schema."
+    },
+    "2f_flow": {
+      "node": "a named end-to-end path across nodes, in the direction the system runs",
+      "id": "F<n>",
+      "fields": [
+        "name",
+        "entry",
+        "exit",
+        "node_sequence",
+        "E_by_layer",
+        "R_union",
+        "cardinality",
+        "requirement_ids",
+        "behaviors"
+      ],
+      "why": "A is a property of a flow, not of a node. Annotating it per node produces several partial A's and no end-to-end picture - which is the thing `F1 -> F2 -> F3` was drawing in the first place.",
+      "rules": [
+        "A flow is annotated before its nodes are. The node-level A is then that node's slice of the flow, and the two must agree.",
+        "One flow per requirement is common; more than three means the requirement is really several.",
+        "The flow owns the layer error table: what each hop receives and maps outward. A node only owns its own hop.",
+        "R at flow level is the union of its nodes' R, and it is what the acceptance harness must supply.",
+        "Conformance at `retrace` compares the actual cross-node call order against the flow's node_sequence, not just each node in isolation."
+      ]
+    },
+    "3_symbol": {
+      "node": "one function, method, job, or workflow step inside a file",
+      "fields": [
+        "symbol",
+        "verdict",
+        "reason",
+        "contract",
+        "contract_delta",
+        "propagates",
+        "passes",
+        "behaviors"
+      ],
+      "note": "Contracts live here. The file tier is only for addressing and drift detection."
+    },
+    "4_behavior": {
+      "node": "one observable thing the node does",
+      "id": "B<n>",
+      "fields": [
+        "statement",
+        "kind",
+        "serves_purpose",
+        "symbol",
+        "requirement_ids",
+        "verdict",
+        "tests",
+        "status"
+      ],
+      "note": "The atomic unit of the whole method. Verdicts are most meaningful here: you do not change a file, you change a behavior. This is also the only tier that links up to requirements and down to tests, which makes it the traceability spine.",
+      "kind_enum": [
+        "happy",
+        "error",
+        "boundary",
+        "concurrency",
+        "effect"
+      ],
+      "verdict_enum": [
+        "new",
+        "modified",
+        "unchanged",
+        "removed"
+      ],
+      "rules": [
+        "A behavior is stated as observable from outside the node: input condition plus what the caller sees. Never as an implementation step.",
+        "Every behavior maps to at least one test. A behavior with no test is a claim, not a behavior.",
+        "Every behavior names the purpose it serves. If it cannot, either the purpose statement is wrong or the behavior is misplaced.",
+        "A `removed` behavior needs its callers checked as carefully as a changed contract - someone depends on it.",
+        "Behaviors discovered while implementing (the A_recheck pass) are appended here with found_in: A_recheck, so the gap between predicted and actual behavior is visible."
+      ]
+    }
+  },
+  "edge_kinds": {
+    "calls": "in-process function call. Traced via LSP, compiler, or grep. Caller set is provable.",
+    "imports": "structural module dependency.",
+    "invokes": "crosses a process boundary on the same host: a workflow runs a script, a script runs a binary, a job needs a job.",
+    "requests": "crosses a network boundary synchronously: HTTP, gRPC, GraphQL. Traced via the client construction on one side and the route or service definition on the other.",
+    "publishes": "emits to a topic, queue or event bus. The far side is unknown by design - that is the point of the pattern, and the reason the consumer set is unprovable.",
+    "subscribes": "consumes from a topic or queue. Trace up from here to the publisher via the message schema, not via code.",
+    "reads_writes": "shares state rather than control: a table, a view, a cache key, a bucket, an env var. Invisible to every static tool - record manually.",
+    "provisions": "infrastructure defines runtime behavior: Terraform, k8s manifests, gateway or mesh config, DNS, feature flags. Changing one of these changes behavior with no code diff at all.",
+    "depends_on": "task or requirement tier ordering.",
+    "owns": "downward tier link: requirement owns tasks, task owns file nodes."
+  },
+  "contract_schema": {
+    "signature": "normalized: name, ordered param types, return type. Language-neutral rendering.",
+    "errors": "enumerated failure modes this symbol can produce, and for each a policy: retry | fallback | propagate | die",
+    "deps": "what this symbol needs to exist: injected collaborators, clients, config keys, env vars",
+    "effects": "writes, emits, mutates - anything observable beyond the return value",
+    "cardinality": "one | many | time_bounded",
+    "channels": "see channel_schema - the full A/E/R annotation, produced by the `channels` phase",
+    "hash": "sha256 of the normalized signature + sorted errors + sorted deps. Semantic, so formatting churn does not trip drift."
+  },
+  "domain_schema": {
+    "glossary_entry": {
+      "term": "the one canonical name, in the domain's own words",
+      "definition": "one sentence a domain expert would accept",
+      "context": "which bounded context it belongs to - the same word can mean different things in two contexts, and that is legitimate",
+      "product_terms": "what the PM, docs or tickets call it",
+      "code_terms": "what the code currently calls it",
+      "dead_aliases": "older names still present in the code. Recorded deliberately, because the code usually speaks the old language and keyword search must cover it.",
+      "drift": "true when code_terms and product_terms disagree. The language is not ubiquitous, and every translation between them is a place bugs hide."
+    },
+    "context_entry": {
+      "name": "bounded context",
+      "ours": "true | false",
+      "relationship": "shared_kernel | partnership | customer_supplier | conformist | anti_corruption_layer | published_language | separate_ways",
+      "absorbs_change_at": "the node that translates their model into ours - the ACL. Null when we are conformist, which means foreign changes reach our domain directly.",
+      "propagation_prediction": {
+        "anti_corruption_layer": "shallow. Their change stops at the ACL node. Trace to the ACL and stop.",
+        "published_language": "shallow, if the artifact is honoured. Their change shows up as an artifact diff.",
+        "conformist": "deep. We took their model as ours, so their change propagates as far as our own model does. Expect the widest blast radius here.",
+        "shared_kernel": "deep and bidirectional. The only legitimate lockstep deploy.",
+        "customer_supplier": "negotiated. Their roadmap is our dependency; escalate to the task tier as a blocking edge.",
+        "separate_ways": "none, by design. If a trace crosses here, one of the two contexts is wrong."
+      },
+      "note": "Determine this before tracing across a seam. It tells you the blast radius in advance."
+    },
+    "aggregate_entry": {
+      "name": "aggregate, named in the ubiquitous language",
+      "root": "the entity that is the only legal entry point",
+      "identity": "how the root is identified. Branded, constrained, never a bare string.",
+      "members": "entities and value objects inside the boundary",
+      "invariants": "the rules that must hold at every commit. These are the reason the boundary exists.",
+      "consistency": "transactional inside the boundary, eventual outside it",
+      "sizing_rules": [
+        "One transaction, one aggregate. If a behavior must commit changes to two aggregates atomically, either the boundary is wrong or the second change belongs in an event handler.",
+        "Reference other aggregates by id, never by object.",
+        "Smaller is better. A large aggregate is a contention point and a lock queue.",
+        "If an invariant spans two aggregates, it is not an invariant - it is a policy, and it is enforced eventually with a compensating action."
+      ]
+    },
+    "application_service_entry": {
+      "name": "application service, process manager, or saga",
+      "coordinates": "the ordered steps, each naming the aggregate or seam it drives",
+      "owns_rules": "must be false. A business rule here is misplaced - route it to the aggregate that owns the invariant.",
+      "compensations": "for each step that cannot be rolled back transactionally, what undoes it",
+      "purpose_shape": "a sequence, not an invariant. 'Coordinates refund approval, ledger entry and customer notification.'"
+    },
+    "domain_event": {
+      "name": "past tense, in the ubiquitous language: RefundRecorded, not RecordRefund",
+      "emitted_by": "the aggregate whose invariant just held",
+      "payload": "the facts, not the intent. No command semantics.",
+      "seam": "the seam id if it leaves the process"
+    },
+    "role_purpose_shapes": {
+      "aggregate_root": "the invariant it protects",
+      "entity": "the identity it carries and the state transitions it permits",
+      "value_object": "the concept it makes unrepresentable-if-invalid",
+      "domain_service": "the rule that belongs to no single aggregate",
+      "application_service": "the sequence it coordinates, with no rules of its own; it is the transaction and security boundary",
+      "process_manager": "the long-running flow it drives, its states, and the compensation for each step that can be undone",
+      "repository": "the aggregate it loads and persists, whole",
+      "anti_corruption_layer": "the foreign model it translates into ours",
+      "read_model": "the question it answers, and for whom",
+      "handler": "the transport it translates into an application-service call",
+      "entrypoint": "the flow it starts, and what triggers it",
+      "adapter": "the outside system it speaks to, in that system's terms",
+      "script": "the operation it performs, and what it needs to perform it",
+      "workflow": "the sequence of jobs it runs, and what triggers them",
+      "migration": "the schema or data change it makes, and whether it is reversible",
+      "config": "the runtime behavior it decides, and for which environment",
+      "util": "a pure transformation named for what it computes - never 'helpers'",
+      "fixture": "the state it sets up, and for which tests",
+      "test": "the behavior it proves - the same sentence as that behavior (principle 8b)"
+    },
+    "role_routing": {
+      "why": "triage routes a behavior by asking what kind of thing it is, not by which node the trace reached first. Seven of these roles were in this schema and in none of the prose, so every behavior that fit none of them was forced into 'orchestrator' - which owns no rules, so the rule went homeless.",
+      "enforces an invariant over one consistency boundary": "aggregate_root",
+      "a rule that belongs to no single aggregate": "domain_service",
+      "sequences steps and owns no rule": "application_service",
+      "drives a flow across more than one transaction, over time": "process_manager",
+      "loads or persists one aggregate, whole": "repository",
+      "answers a question without writing": "read_model",
+      "translates a foreign model into ours": "anti_corruption_layer",
+      "makes an invalid state unrepresentable": "value_object",
+      "carries identity through state transitions": "entity",
+      "translates a transport into a call": "handler",
+      "starts a flow - an entrypoint the platform invokes": "entrypoint",
+      "speaks to an outside system in that system's terms": "adapter",
+      "performs an operation on a host, outside any request": "script",
+      "sequences jobs in CI, triggered by an event or a schedule": "workflow",
+      "changes a schema or migrates data": "migration",
+      "decides runtime behavior per environment": "config",
+      "is a pure transformation, named for what it computes": "util",
+      "sets up state for tests": "fixture",
+      "proves a behavior - the same sentence as that behavior (principle 8b)": "test",
+      "fits none of the above": "a concept is missing a name; naming it is the work (principle 19) - never widen a purpose to absorb it",
+      "note": "Structural roles are routing targets too. A behavior that belongs in a script, a workflow or a migration has a home; only a behavior fitting none of these means a concept has no name yet. Leaving them out of this table sent every such behavior to the fallback, which is the homelessness the `why` above exists to prevent."
+    },
+    "aggregate_design_rules": [
+      "Model true invariants in consistency boundaries: what must hold at every commit is what defines the aggregate, and nothing else belongs inside it.",
+      "Design small aggregates. A large one is a lock queue with a domain name.",
+      "Reference other aggregates by identity, never by object.",
+      "Use eventual consistency outside the boundary, with a named compensation.",
+      "The decision test: whose job is it to make this data consistent? If it is the executing user's, same transaction. If it is another user's or another system's, eventual consistency and a process manager."
+    ],
+    "subdomain_classification": {
+      "why": "Investment follows subdomain (principle 17b). Classifying first is what keeps a method this thorough off a CSV parser.",
+      "core": "the differentiator. Model it properly; this is where the method earns out.",
+      "supporting": "needed, not special. The minimum that works.",
+      "generic": "everyone has one. Buy it, or use a library. ponytail's handoff is here, and the answer to 'does this need to exist at all' is usually no."
+    },
+    "role_purpose_note": "Every role a node can carry has a purpose shape, DDD or structural - principle 7 gives every node a purpose and non-negotiable 6 says the shape follows the role. A structural role is still a role: 'utilities' is not a purpose, and a node whose purpose needs 'and' between unrelated capabilities is two nodes."
+  },
+  "evidence_tiers": {
+    "note": "A verdict's trustworthiness is the strength of the evidence behind it, not the language it was found in. `unsure` is triggered by weak evidence on a contract-changing symbol - never by language identity. This replaces 'dynamic languages are riskier, so hesitate more', which was a mood rather than a method. The tier names are canonical and are the values `design.py --evidence` accepts: compiler, coverage, references, text, reasoning. A hedged variant such as 'compiler-ish' or 'references-ish' is not a tier at all - it is the mood this note exists to replace. Record the tier actually reached, and if that is weaker than the symbol needs, the verdict is `unsure`.",
+    "ladder": [
+      {
+        "tier": 1,
+        "name": "compiler",
+        "gives": "exhaustive caller set, including interface and generic dispatch",
+        "how": "break the signature deliberately, read the errors, revert"
+      },
+      {
+        "tier": 2,
+        "name": "coverage",
+        "gives": "empirical caller set - which tests actually execute this symbol, which is the strongest evidence available with no compiler",
+        "how": "run the suite with coverage, filter to files whose execution touched the symbol",
+        "was": "coverage_run"
+      },
+      {
+        "tier": 3,
+        "name": "references",
+        "gives": "static references, usually missing dynamic dispatch",
+        "how": "find references / call hierarchy",
+        "was": "lsp"
+      },
+      {
+        "tier": 4,
+        "name": "text",
+        "gives": "identifier and string occurrences; the only tier that finds routes, config keys and name-based registration",
+        "how": "search identifier form AND string form",
+        "was": "grep"
+      },
+      {
+        "tier": 5,
+        "name": "reasoning",
+        "gives": "reasoning about DI, reflection, metaprogramming, framework registration",
+        "how": "read the wiring and say what was assumed",
+        "was": "manual"
+      }
+    ],
+    "rules": [
+      "Record the best tier achieved on every node, and on every edge.",
+      "A body-only change is safe at any tier - nothing propagates.",
+      "A contract-changing symbol needs tier 1 or 2. Below that the verdict is `unsure`, and `unsure` must be resolved before the gate, which is what actually forces the coverage run to happen.",
+      "Tier 2 is available in every language with a test suite, which is why a dynamic language is not condemned to guessing - it is condemned to running its tests.",
+      "If tier 1 and tier 2 are both unavailable on a contract change, do not break the contract in place. Add beside it and migrate under observation."
+    ]
+  },
+  "flow_schema": {
+    "id": "F<n>",
+    "name": "named in the ubiquitous language: 'record a partial refund'",
+    "entry": "the node and symbol where the flow starts - a handler, a job, a workflow step, a CLI entry",
+    "exit": "what the caller observes at the end, which is also what the acceptance check asserts",
+    "node_sequence": "ordered [{node, symbol, hop}] - the end-to-end A, spanning process and service boundaries",
+    "cardinality": "one | many | time_bounded, at flow level. A flow can be `many` while each node in it is `one`.",
+    "E_by_layer": "[{hop, receives[], maps_to[], policy}] - the full outward vocabulary chain for this flow",
+    "R_union": "every dependency the flow needs end to end. This is the list the acceptance harness must stand up or substitute.",
+    "seams_crossed": "seam ids on the path, in order, with the deploy order each implies",
+    "behaviors": "behavior ids realised by this flow",
+    "conformance": "actual_sequence recorded at `retrace`, compared against node_sequence"
+  },
+  "channel_schema": {
+    "note": "The design annotation on a symbol, recorded before its tests are written. A, E and R are the three channels; the remaining fields are the disciplines that keep them separable. Language-neutral by construction - `shapes.md` gives the rendering per stack.",
+    "shapes": {
+      "records": "the entities that flow through. Named in the ubiquitous language.",
+      "ids": "identity, branded or constrained. Never a bare string, because a bare string accepts any other string.",
+      "variants": "the legal states and transitions, as a closed set. Exhaustive where the language can check it.",
+      "errors": "named, structured failure values carrying context. Never a bare string or a generic exception.",
+      "rule": "You cannot draw the graph until you know what flows through it. Shapes first."
+    },
+    "A": {
+      "flow": "the happy path as an ordered call graph: F1 -> F2 -> F3",
+      "in": "what enters",
+      "out": "what leaves on success",
+      "rule": "A must be readable top to bottom with no error handling interleaved. If reading the success path requires stepping over retries and catches, A and E are tangled."
+    },
+    "cardinality": {
+      "values": "one | many | time_bounded",
+      "one": "the node runs, produces a value, done.",
+      "many": "emits repeatedly over time - events, subscriptions, pagination. Then also decide: backpressure, ordering, completion, and what a partial failure mid-stream means.",
+      "time_bounded": "the result is valid for a window. Then also decide: cache key, TTL, and whether concurrent identical lookups are deduplicated.",
+      "rule": "Mark it on the node. A `many` node implemented as `one` is the bug where only the first page is ever processed."
+    },
+    "E": {
+      "break_points": "each place the node can fail, with the failure named as a value",
+      "policies": {
+        "retry": "transient: timeout, rate limit, connection reset, optimistic-lock conflict. Record the bound - attempts, backoff, and total budget. An unbounded retry is an outage amplifier.",
+        "fallback": "recoverable: a default, a cached value, a degraded response. Record what the caller loses.",
+        "propagate": "the caller's problem: map it into this layer's vocabulary and pass it out.",
+        "die": "an invariant is violated or a programmer erred. Not a domain error. Do not catch it - failing loudly beats continuing wrongly."
+      },
+      "layer_scoping": "This layer enumerates the errors it actually receives and maps them into its own vocabulary. A repository turns driver errors into domain errors; a service turns domain errors into use-case errors; a handler turns those into transport errors. Consumers never see the vocabulary of a layer three below.",
+      "divergent_strategy": "When two steps in one flow need different policies - one falls back, one fails hard - handle those two inline rather than in a single outer wrapper, because an outer wrapper cannot tell which step produced which error. Mark it; it should be rare.",
+      "rule": "Every break point has exactly one policy, chosen deliberately. A failure handled by accident is the same as unhandled."
+    },
+    "R": {
+      "requires": "what this node needs to exist: collaborators, clients, config values, clock, randomness, identity source",
+      "test": "'We cannot do X if we do not have Y.' Each Y is an entry in R.",
+      "provided_by": "where each requirement is supplied - constructor, parameter, layer, container",
+      "empty_means_runnable": "When nothing is left unsatisfied, the node can run. Anything still outstanding is precisely what is missing, and saying so beats a nil dereference at runtime.",
+      "rule": "R is explicit and injected. A dependency reached through a global, a singleton or an ambient import is a hidden R - invisible in the signature, and the reason a node cannot be tested without mocking the world."
+    },
+    "boundary": {
+      "where": "every point untrusted data enters: transport, queue payload, file, env, third-party response, CLI argument",
+      "how": "parse unknown into trusted once, at the edge. One definition serves as type, validator and transformer.",
+      "after": "inside the boundary, shapes are guaranteed and nothing revalidates.",
+      "rule": "Validation scattered across a node's interior means the boundary is not doing its job, and some caller is skipping it."
+    },
+    "layers": {
+      "what": "cross-cutting behavior wrapped around the node: retry, timeout, logging, tracing, metrics, caching, auth",
+      "how": "composed outside the node so its graph is unchanged. The graph says what happens; the layers say how it behaves under pressure.",
+      "rule": "If removing the logging or the retry would require editing the happy path, the layer is entangled rather than wrapped."
+    },
+    "scope": {
+      "acquires": "resources this node takes: connections, file handles, locks, subscriptions, child processes, transactions",
+      "release": "the structural mechanism guaranteeing cleanup on every exit path, including error and cancellation",
+      "rule": "Cleanup is a language construct, not a convention. If a panic, early return or cancellation can skip it, it is not scoped."
+    },
+    "substitutability": {
+      "test": "Can this node run under test with only R substituted, and the graph shape unchanged?",
+      "smell": "If testing one node requires faking the world, the node is doing too much, or an R is hidden.",
+      "rule": "The production and test call graphs differ only in what sits behind R. That is the payoff of separating the channels."
+    }
+  },
+  "seam_schema": {
+    "what": "A node representing a contract between two runtimes rather than a file in one of them. Trace stops here only if the far side is genuinely unreachable.",
+    "id": "seam:<kind>:<identifier>, e.g. seam:http:POST /v2/refunds, seam:topic:refund.recorded, seam:table:orders",
+    "kind": "http | rpc | graphql | topic | queue | table | cache | object_store | config | env | dns | feature_flag",
+    "provider": "the service that defines and serves it",
+    "consumers_known": "the consumers actually found, with how each was found",
+    "consumers_provable": "false for any published seam. Record it so nobody mistakes the list for complete.",
+    "closing_the_unknown": {
+      "principle": "You cannot enumerate the consumers, but you can watch them. Replace the unprovable question 'who calls this?' with the answerable one 'is anyone still calling this?'",
+      "steps": [
+        "INSTRUMENT: before changing anything, emit a per-caller signal on the old path - a counter or log line carrying whatever identifies the caller. A seam with no usage signal is the real blocker, and adding one is often the first task.",
+        "ANNOUNCE: mark the old path deprecated where consumers will see it - a deprecation header, a schema annotation, a changelog entry, a message to the owning teams you did find.",
+        "WAIT: a sunset window at least as long as the slowest consumer's release cadence, and long enough to cover anything that runs monthly or quarterly. A batch job nobody remembers is the classic casualty.",
+        "VERIFY: zero traffic on the old path for the full window, not just at the moment you check. A weekly job produces a zero reading on six days out of seven.",
+        "REMOVE: only then, and as its own task with its own gate."
+      ],
+      "removal_gate": "A removal behavior does not pass the behavior gate until the usage signal has read zero for the whole declared window. That converts 'we think nobody uses it' into evidence, which is as close to proof as a published seam allows.",
+      "when_no_signal_is_possible": "Say so explicitly and treat the old path as permanent, or negotiate directly with the consumers you can identify. Removing a seam you cannot observe is a guess, and it should be named as one."
+    },
+    "artifact": "where the contract is written down: an OpenAPI file, a .proto, an AsyncAPI or JSON schema, a migration, a Terraform resource. Null means the contract is implicit, which is itself a finding.",
+    "contract": {
+      "shape": "request and response, or message payload, or column set",
+      "errors": "status codes, error payloads, RPC codes, DLQ conditions",
+      "translation": "how the provider's internal errors map outward, and how the consumer maps them back into its own domain. This is where the layers meet and where the bugs are.",
+      "semantics": "idempotency, ordering guarantees, at-least-once vs exactly-once, retry expectations, timeout and deadline",
+      "auth": "who may call it, with what scope or permission"
+    },
+    "compatibility": {
+      "direction": "backward | forward | both | breaking",
+      "backward": "old consumers keep working against the new provider",
+      "forward": "new consumers work against the old provider - the one people forget, and the one that matters during a rollout",
+      "rule": "Additive changes are safe. Removing or narrowing anything - a field, a status code, an enum value, a column, a permission - is breaking regardless of how few consumers you found."
+    },
+    "deploy_order": "provider_first | consumer_first | either | lockstep",
+    "verified_by": "contract test, schema check in CI, or a staging call. A seam asserted only in prose is unverified."
+  },
+  "behavior_schema": {
+    "id": "B<n>, unique within the trace",
+    "statement": "observable: given <condition>, the caller sees <result>",
+    "kind": "happy | error | boundary | concurrency | effect",
+    "serves_purpose": "true, or the misplacement reason",
+    "symbol": "the symbol that implements it",
+    "requirement_ids": "which requirements this behavior helps satisfy. Empty means it is pre-existing behavior that must not regress.",
+    "verdict": "new | modified | unchanged | removed",
+    "tests": "test identifiers proving it",
+    "found_in": "trace | test | A_recheck | retrace",
+    "status": "todo | red | green"
+  },
+  "fingerprint_schema": {
+    "traced_at_commit": "git rev-parse HEAD at trace time",
+    "blob_sha": "git rev-parse HEAD:<path> - cheap pre-filter for 'did this file move at all'",
+    "contract_hashes": {
+      "<symbol>": "<hash from contract_schema>"
+    }
+  },
+  "phases": [
+    {
+      "id": "preflight",
+      "tier": 0,
+      "title": "Preflight",
+      "purpose": "Establish what is available before promising anything, and re-anchor a resumed session.",
+      "ask": [
+        "Does .design/ exist with a log for this ticket? If not, `design.py init` is the first action of the phase, before anything is read.",
+        "Are the declared dependency skills present? Name any that are missing.",
+        "Is there existing state for this ticket or task? If so, revalidate before reading it as current.",
+        "Does the repo have a check manifest already, or must `acceptance` establish one?",
+        "What is the suite's baseline - what is already failing before any work starts?"
+      ],
+      "produces": [
+        "decision_log_started",
+        "available_dependencies[]",
+        "missing_dependencies[]",
+        "resumed_from",
+        "baseline_failures[]"
+      ],
+      "degradation": "A missing dependency never silently changes the method. Say which skill is missing, which step it would have handled, and what is being done instead. Then continue - the graph, the gates and the loop do not depend on any optional skill. Without ponytail, minimality is still applied by hand at `locate`, `triage` and pass A, just without the review pass over the diff. Without caveman, narration is simply not compressed.",
+      "exit_criteria": [
+        "A decision log exists for this ticket and the tree has rendered at least once.",
+        "Missing dependencies are reported once, at the start, not discovered mid-phase.",
+        "Baseline failures are recorded, since both gates depend on knowing what was already red.",
+        "Existing state is either revalidated or explicitly started fresh."
+      ],
+      "bootstrap": "Run `design.py init --ref <REF>` before any other phase. It creates .design/ and the decision log. Enforcing the graph fixes drift mid-trace; it does nothing about a trace that never starts, and a trace that never starts is the common failure."
+    },
+    {
+      "id": "requirements",
+      "tier": 0,
+      "title": "Decompose the ticket",
+      "purpose": "Turn prose into a list of separately verifiable expectations, and surface what the ticket does not say.",
+      "ask": [
+        "What are the distinct expectations here? Split anything containing 'and' that could ship separately.",
+        "For each: what is ambiguous? What did the PM leave implicit that the code must decide?",
+        "For each ambiguity: what is the expectation I am going to assume, and how would I know if I assumed wrong?",
+        "What is the dependency order between requirements?"
+      ],
+      "produces": [
+        "requirements[]",
+        "ambiguity_register[]",
+        "requirement_dependencies[]",
+        "tasks[]"
+      ],
+      "ambiguity_entry": {
+        "requirement_id": "R<n>",
+        "question": "what the ticket does not answer",
+        "expectation": "the behavior being assumed",
+        "basis": "asked_user | existing_code_precedent | product_docs | assumed",
+        "verified_by": "the test or check that proves it",
+        "risk_if_wrong": "one line"
+      },
+      "exit_criteria": [
+        "Every requirement is verifiable from outside the system.",
+        "Every ambiguity has an expectation and a basis. `assumed` is allowed, but it must be listed for the user to review, not buried.",
+        "Requirements are ordered by dependency, and the first one is chosen."
+      ],
+      "note": "This is the 'recipe of expectations'. It is the artifact that ambiguous requirements get checked against later, one at a time."
+    },
+    {
+      "id": "language",
+      "tier": 0,
+      "title": "Translate into the domain",
+      "purpose": "Turn product prose into the ubiquitous language, classify each context's subdomain, and give every needed behavior an owner - by role, not by file.",
+      "ask": [
+        "What nouns and verbs does the requirement use, and what does the domain actually call each one?",
+        "What does the code call it? If those differ, the language is not ubiquitous - record the drift and search on both.",
+        "Is each context core, supporting or generic? That decides how much design it deserves before any of it is done (principle 17b).",
+        "Which bounded contexts does this requirement touch, and for each foreign one: what is our relationship to it, and where does its model get translated into ours?",
+        "Which aggregate owns each piece of state this requirement changes? What invariant does that aggregate protect?",
+        "Does any needed behavior require two aggregates to change atomically? Then either the boundary is wrong, or it is a policy enforced eventually with a compensation.",
+        "What is the sequence, and which application service owns it? If it spans more than one transaction it is a process manager, and each undoable step needs a named compensation. Does the sequence contain a business rule that belongs in an aggregate or a domain service instead?",
+        "What domain events does this produce, named in past tense?",
+        "Which entities have identity, and which concepts are values that should be compared by content and made invalid-impossible?",
+        "For each behavior: which role owns it? Use domain_schema.role_routing - 'orchestrator' is not the answer for a rule."
+      ],
+      "produces": [
+        "glossary[]",
+        "subdomains[]",
+        "contexts[]",
+        "aggregates[]",
+        "domain_services[]",
+        "application_services[]",
+        "repositories[]",
+        "process_managers[]",
+        "read_models[]",
+        "domain_events[]",
+        "requirement_restatements[]"
+      ],
+      "exit_criteria": [
+        "Every requirement is restated in the ubiquitous language, with no unmapped product term left in it.",
+        "Every glossary term has one canonical name. Two names for one concept is recorded as debt with the alias to retire; one name for two concepts is escalated, because it will produce a bug.",
+        "Dead aliases are recorded - the code usually speaks the older language, and `keyword` needs them.",
+        "Every needed behavior is assigned a role via domain_schema.role_routing. Nothing is unassigned, and a behavior that fits no role means a concept has no name yet - naming it is the work.",
+        "Every foreign context has a relationship and a predicted propagation depth, decided before tracing rather than discovered during it.",
+        "No invariant spans two aggregates. Any that appeared to has been reclassified as a policy with a compensating action.",
+        "Any term that had to be invented rather than mined is marked `provenance: invented` with a proposer, appears in the acceptance check's name, and is listed for ratification. Invention is allowed on greenfield work; silent invention is not.",
+        "Every context is classified core | supporting | generic, with the investment that follows stated.",
+        "No behavior is assigned to an application service that enforces a rule - that is a displaced invariant with a known destination."
+      ],
+      "loop_back_if": "The domain model cannot express the requirement without contradiction - two conflicting invariants, or a term the domain expert rejects. Return to `requirements`; this is an ambiguity, not a modelling problem.",
+      "note": "This phase is done on the ticket and on the existing code together. The domain model is mined from what exists, not invented - `domain.md` covers how. Inventing a model that the code does not share produces a translation layer nobody asked for."
+    },
+    {
+      "id": "acceptance",
+      "tier": 0,
+      "title": "REQUIREMENT GATE",
+      "type": "gate",
+      "purpose": "Make the requirement executable before any work starts on it. This is the behavior gate's twin, one tier up, and it is what lets the loop close by itself.",
+      "ask": [
+        "At what altitude is this requirement observable? That choice picks the harness, not preference: a user-visible flow is a browser check, an API contract is an HTTP check, a command is a CLI check, an event is a consumer check, a pipeline change is an actual run.",
+        "What is the smallest automated check that would be red now and green when the requirement is met?",
+        "Which assertion corresponds to each ambiguity's assumed expectation? Every `assumed` basis in the register needs one, or the assumption is never tested.",
+        "What must the check NOT assert? Coupling it to incidental detail - copy, layout, ordering, ids - makes it fail on unrelated work and it will be deleted within a month.",
+        "Is the check deterministic? Pinned time, seeded data, stable selectors, no sleeps, no dependence on test execution order or on data left by another test.",
+        "If this requirement genuinely cannot be automated, say so now and name who closes it manually and on what evidence."
+      ],
+      "harness_selection": {
+        "user_visible_flow": "browser driver - Playwright, Cypress, Selenium. Stable selectors, auto-waiting, trace on failure.",
+        "http_or_rpc_contract": "API-level test or contract test against a running service.",
+        "cli_or_script": "CLI harness - bats, shunit2, or a plain script asserting exit codes, stdout shape and side effects.",
+        "event_or_queue": "publish a message, assert the consumer's observable effect. Never assert on an internal handler call.",
+        "ci_or_workflow": "an actual run - a branch push, `act`, or a workflow_dispatch. A workflow requirement has no honest local check.",
+        "data_or_migration": "migrate a seeded database, assert shape and that the down path restores it.",
+        "rule": "Choose by where the requirement is observable, not by which harness the team likes. Two altitudes for one requirement means it is two requirements."
+      },
+      "produces": [
+        "acceptance_checks[] (per requirement: harness, spec path, assertions, ambiguity mapping)",
+        "check_commands",
+        "manual_closure[] (requirements that cannot be automated, with who closes them)"
+      ],
+      "checks": [
+        {
+          "id": "Q1",
+          "check": "An acceptance check exists for this requirement, committed as a spec file at the chosen altitude."
+        },
+        {
+          "id": "Q2",
+          "check": "It runs, and it is RED for the intended reason - failing on the missing behavior, not on a broken harness, missing fixture or unrelated suite failure. The observed failure is recorded."
+        },
+        {
+          "id": "Q3",
+          "check": "Every ambiguity with basis `assumed` has a corresponding assertion, or is explicitly marked as untestable and escalated to the user."
+        },
+        {
+          "id": "Q4",
+          "check": "The check is deterministic: time pinned, data seeded, selectors stable, no sleeps, no cross-test order dependence."
+        },
+        {
+          "id": "Q5",
+          "check": "The command that runs it is recorded in the check manifest, so the loop can re-run it without a human choosing how."
+        }
+      ],
+      "on_fail": "Do not start `keyword`. A requirement with no red acceptance check has no definition of done, and the loop cannot close on it.",
+      "exit_criteria": [
+        "Every requirement in scope has a red acceptance check, or an explicit manual-closure record naming who closes it and on what evidence.",
+        "The check manifest lists the exact commands for unit, contract and acceptance layers."
+      ],
+      "note": "Write the thinnest check that captures the requirement's observable outcome. An acceptance check that asserts twenty things fails for twenty reasons and teaches you nothing; one that asserts the outcome fails for one reason and tells you which."
+    },
+    {
+      "id": "keyword",
+      "tier": 2,
+      "title": "Derive search keywords",
+      "purpose": "Turn one requirement into terms that exist in the code.",
+      "ask": [
+        "Which glossary terms does this requirement involve? Search the canonical name, the code term, and every dead alias - the code usually speaks the older language.",
+        "Which aggregate, service or process manager did `language` assign this behavior to? Their names are the strongest keywords available.",
+        "Which domain event names are involved? Event names are excellent keywords because they appear in publishers, subscribers, schemas and tests alike.",
+        "If nothing matches: which existing feature is the closest analogue, and which entrypoint will this hang off?"
+      ],
+      "produces": [
+        "keywords[]",
+        "glossary_terms_used[]",
+        "is_greenfield",
+        "analogue_feature"
+      ],
+      "exit_criteria": [
+        "At least three candidates spanning literal, domain-derived, and entrypoint-shaped (route, event name, job name, table, topic, workflow name).",
+        "Dead aliases from the glossary were searched, not just the canonical term. Skipping them is the most common reason a trace misses the node that matters.",
+        "Search covers identifiers, string literals, config keys, migrations and test names."
+      ]
+    },
+    {
+      "id": "locate",
+      "tier": 2,
+      "title": "Seed nodes",
+      "purpose": "Establish entry points into the graph for this requirement.",
+      "ask": [
+        "Which files did each keyword hit, and is the hit meaningful or incidental?",
+        "Which specific symbol is each hit inside?",
+        "Which seed is closest to the behavior the requirement describes?"
+      ],
+      "produces": [
+        "seeds[]",
+        "rejected_hits[]"
+      ],
+      "exit_criteria": [
+        "Every seed names a symbol, not just a path. Rejected hits are recorded, so the search is auditable."
+      ]
+    },
+    {
+      "id": "trace",
+      "tier": 2,
+      "title": "Walk up and down",
+      "purpose": "Expand seeds into the subgraph the change could touch.",
+      "ask": [
+        "For node Y: who calls it (X)? What does it call (Z)?",
+        "What is Y's purpose, in one sentence, read off its code and its tests?",
+        "What behaviors does Y already have? Its existing test names are the documented ones; anything untested is undocumented behavior worth recording.",
+        "Does Y's contract delta reach X? Does it reach Z?",
+        "Are there `invokes` or `reads_writes` edges that no static tool will show?"
+      ],
+      "produces": [
+        "nodes[] (each with purpose)",
+        "existing_behaviors[]",
+        "edges[]",
+        "frontier[]",
+        "cycles[]"
+      ],
+      "expansion_rule": "Breadth-first from every seed, alternating up and down. Enqueue a neighbour only when the current node's contract delta could reach it.",
+      "stop_conditions": [
+        "ABSORBED: the neighbour's contract is unchanged by the delta. Record no_change plus the invariant that must hold. This is the normal stop.",
+        "MISPLACED: the change reaches this node but its purpose does not cover the behavior being added. Do not expand and do not change it. Record where the behavior belongs instead - an existing node whose purpose covers it, or a new node. This is the condition that keeps helper files from accreting a decade of unrelated behavior.",
+        "CROSSING: the neighbour is on the far side of a seam - another service, another repo, a database, an infra layer. This is not a stop. Record the seam node, then continue tracing with the mechanics in `crossing.md`. Mark the edge's evidence honestly, because a seam crossed via a schema artifact is far stronger than one crossed via a guess.",
+        "OPAQUE: the far side is genuinely unreachable - a third-party API, a vendored binary, another company's system. This is the real stop, and rarer than it looks. Record the seam contract and the compatibility requirement, since that is all the leverage you have.",
+        "VISITED: already in the node set. Add the edge, do not re-expand.",
+        "COMPLETE_UP: the flow's entrypoint is reached - a handler, job, workflow step or CLI entry with nothing above it. Upstream is finished by construction, not by a hop count.",
+        "COMPLETE_DOWN: a leaf, or a seam whose far side is opaque. Downstream is finished for the same reason.",
+        "PASS_THROUGH: three consecutive hops where the delta propagates without any node transforming it - a re-export or delegation chain. Collapse the chain to its two ends, record it, and continue from the far end. This is what a depth limit was badly approximating.",
+        "NO_ABSORPTION: the delta reaches the entrypoint still propagating, meaning nothing in the path absorbed it. Not a stop - a finding. Either the seed was downstream of the real boundary (re-seed at the entrypoint) or the design has no absorption point on this path, which is worth reporting whether or not the ticket asked."
+      ],
+      "exit_criteria": [
+        "Frontier is empty or every entry has a stop reason.",
+        "Every node in the change path has a recorded purpose. Nodes stopped by OPAQUE may skip it.",
+        "Each edge records its evidence. Prefer LSP or compiler; mark grep-only edges as weak.",
+        "Fingerprint recorded for every node: traced_at_commit, blob_sha, contract hashes."
+      ]
+    },
+    {
+      "id": "cross",
+      "tier": 2,
+      "title": "Cross the seams",
+      "purpose": "Continue the trace through every CROSSING, and decide compatibility and deploy order at each one.",
+      "ask": [
+        "For each seam: which bounded contexts does it join, and what is our relationship to the foreign one? That answer predicts the blast radius before any tracing.",
+        "Is there an anti-corruption layer? If yes, the foreign change is absorbed there and the trace stops at that node. If we are conformist, it propagates into our domain and the trace continues.",
+        "For each seam: what is its contract, and is it written down anywhere, or only implied by the code on both sides?",
+        "Which side am I changing - provider, consumer, or both?",
+        "If provider: is the change additive? If it removes or narrows anything, it is breaking, no matter how few consumers I found.",
+        "How does this seam translate errors in each direction, and does my change alter that mapping?",
+        "Is the far side reachable - a sibling repo, a monorepo package, a schema artifact, a generated client? If yes, keep tracing into it.",
+        "What does the far side assume that my change would violate: ordering, idempotency, timeout, retry behavior, nullability, enum exhaustiveness?",
+        "During the window when one side is deployed and the other is not, does the system still work in both directions?"
+      ],
+      "produces": [
+        "seams[]",
+        "far_side_nodes[]",
+        "compatibility_decisions[]",
+        "deploy_order",
+        "contract_tests_needed[]"
+      ],
+      "consumer_discovery": [
+        "Schema artifacts first: OpenAPI, proto, AsyncAPI, JSON schema, GraphQL SDL. A committed artifact is the contract; the code is only its implementation.",
+        "Generated clients and SDKs - every repo importing one is a consumer.",
+        "Org-wide code search for the path, topic name, or table name, including string-concatenated URLs.",
+        "Gateway, mesh and IaC config - routes and permissions name their consumers.",
+        "Telemetry and access logs - the only source that shows who is calling right now, as opposed to who compiled against it.",
+        "Existing contract tests - each one is a consumer that has already written its expectations down."
+      ],
+      "exit_criteria": [
+        "Every seam has a contract recorded, a compatibility direction, and a deploy order.",
+        "Every seam names its context relationship, and the ACL node if one exists. A seam to a foreign context with no ACL and no published language is a finding worth raising, not just a fact to record.",
+        "Seam payloads are named in the ubiquitous language of the context that publishes them, and the translation into our language is explicit.",
+        "`consumers_provable: false` is recorded on every published seam. The consumer list is evidence, never proof.",
+        "Any breaking change has an expand-contract plan: add the new shape, migrate consumers, then remove the old one - as three separately shippable steps, usually three separate tasks.",
+        "Any removal has a usage signal on the old path, a declared sunset window, and a removal gate that requires zero observed traffic for the whole window. If no signal is possible, that is recorded as a named risk rather than assumed away.",
+        "The error translation in both directions is recorded, and any change to it is a behavior with a test.",
+        "Each seam is verified by something executable - a contract test, a CI schema check, or a staging call. Prose is not verification.",
+        "Far-side nodes that were reachable have been traced and triaged like any other node, addressed as `<service>:<path>`."
+      ],
+      "loop_back_if": "The far side turns out to constrain the design - it cannot accept the new shape, or its deploy cadence makes the ordering impossible. Return to `triage`, or raise it as a blocked requirement.",
+      "note": "Sequencing rule of thumb: additive provider change goes provider first; removal goes consumer first; a shape change in place should be refactored into an additive step plus a removal. Genuine lockstep is legitimate only for a shared kernel - everywhere else it is a schedule dependency masquerading as a technical one, and it belongs on the task tier as a blocking edge."
+    },
+    {
+      "id": "triage",
+      "tier": 4,
+      "title": "Verdict every behavior",
+      "purpose": "Reduce the subgraph to a change set, at behavior granularity.",
+      "ask": [
+        "What behaviors does this requirement need? For each: new, or a modification of one that exists?",
+        "For each needed behavior: which node's purpose already covers it? That is where it belongs, whether or not the trace reached that node first.",
+        "Which aggregate owns the invariant this behavior enforces? A rule found in an application service, process manager, handler or repository is misplaced by definition - route it to the aggregate that owns the invariant, or to a domain service when it belongs to no single aggregate.",
+        "Does this behavior need two aggregates to commit atomically? Then it is a policy: emit an event, handle it eventually, and name the compensation.",
+        "Does the node's role match the shape of its purpose? An application service whose purpose reads like an invariant has absorbed a rule it should not own.",
+        "Does any needed behavior fail to match the purpose of the node the trace led to? Then it is MISPLACED - name the node it belongs in.",
+        "For each existing behavior in a changing node: unchanged, modified, or removed?",
+        "Body-only change, or does the contract change? Contract changes propagate; body changes do not.",
+        "For each no_change node: what must remain true? That sentence is the regression test.",
+        "After this change, will every behavior in this node still serve one purpose? If not, the node splits, and that is a task of its own.",
+        "For each behavior, which role owns it? Route with domain_schema.role_routing; a behavior that fits no role means a concept has no name yet."
+      ],
+      "produces": [
+        "behaviors[]",
+        "change_set[]",
+        "misplaced[]",
+        "split_candidates[]",
+        "no_change_invariants[]",
+        "unsure[]"
+      ],
+      "exit_criteria": [
+        "Every behavior has a verdict and names the purpose it serves.",
+        "Every behavior in the change set maps to at least one planned test.",
+        "Every requirement in scope maps to at least one behavior. A requirement with no behavior is not implemented, however much code was written.",
+        "`misplaced` entries are resolved: either the behavior moves to the right node, or the node's purpose is deliberately widened and that widening is recorded as a decision.",
+        "Every invariant-enforcing behavior sits in an aggregate or a domain service. Every sequencing behavior sits in an application service or, across transactions, a process manager. Any crossing of those is recorded as misplaced.",
+        "`unsure` is empty - each resolved by reading code, running an experiment, or asking the user.",
+        "Every contract-changing symbol has its callers accounted for.",
+        "`split_candidates` are recorded as follow-up tasks, not silently folded into this change.",
+        "Every behavior names its owning role, and no rule is owned by an application service."
+      ],
+      "loop_back_if": "Resolving an unsure reveals a new dependency, or a misplaced behavior belongs in a node not yet traced. Return to `trace`."
+    },
+    {
+      "id": "order",
+      "tier": 2,
+      "title": "Order the change set",
+      "purpose": "Sequence edits so each lands on a stable base.",
+      "ask": [
+        "Which nodes have no changing callees? Those go first.",
+        "Where a contract changes, can the new shape be added before the old is removed, so callers migrate independently?",
+        "Across seams: does the provider deploy first or the consumer? What is broken during the window in between?",
+        "Which node, changed first, best tests whether the trace is right?"
+      ],
+      "produces": [
+        "ordered_change_set[]",
+        "expand_contract_migrations[]",
+        "deploy_sequence[]"
+      ],
+      "exit_criteria": [
+        "Callees before callers, except where an additive step decouples them. Cycles broken explicitly, seam named.",
+        "Deploy sequence recorded per seam, and the rollout window is safe in both directions - old consumer against new provider, and new consumer against old provider."
+      ]
+    },
+    {
+      "id": "channels",
+      "tier": 3,
+      "title": "Annotate A, E and R",
+      "purpose": "Design the flow, then each node in it: what flows through, where it breaks, what it needs. Order - flow A, then shapes, then node A, then cardinality, then E, then R, then the boundary, the layers and the scope.",
+      "flow_first": {
+        "rule": "Annotate the flow before its nodes. A node's A is its slice of the flow's A, and if the two disagree, one of them is wrong.",
+        "ask": [
+          "What is the end-to-end path, node by node, in the direction the system runs? That ordered sequence is the flow's A.",
+          "Where does it enter, and what does the caller observe when it exits? The exit is what the acceptance check asserts.",
+          "What is the error vocabulary at each hop - what that hop receives and what it maps outward? Fill the whole chain before touching any node.",
+          "What is the union of everything the flow needs? That is the list the acceptance harness must stand up or substitute.",
+          "Which seams does it cross, and in what order? Their deploy orders combine into the flow's rollout sequence.",
+          "Is the flow itself one-shot, streaming, or window-valid? A flow can be `many` while every node in it is `one`."
+        ],
+        "produces": [
+          "flows[] (per flow_schema)"
+        ],
+        "exit": "The flow's node_sequence, E_by_layer and R_union are recorded, and every node about to be annotated appears in a flow."
+      },
+      "ask": [
+        "Shapes: what records, ids, variants and errors flow through this node? Are the ids branded and the errors named values carrying context?",
+        "A: what is the happy path as an ordered call graph, with no error handling in it at all?",
+        "Cardinality: does this node produce one value, many over time, or a result valid for a window? If many - ordering, backpressure, and what a mid-stream failure means. If time-bounded - cache key, TTL, and whether concurrent identical lookups deduplicate.",
+        "E: where can it break? For each break point, one policy: retry with a bound, fall back with a stated loss, propagate in this layer's vocabulary, or die.",
+        "E scoping: which errors does this node actually receive from below, and what does it map them into? Nothing from three layers down should be visible to its callers.",
+        "R: what does it need to exist? Complete the sentence 'we cannot do X if we do not have Y' for every Y. Is any Y reached through a global, singleton or ambient import instead of being injected?",
+        "Boundary: does untrusted data enter here? Then where is the single parse point, and what is the trusted shape after it?",
+        "Layers: what cross-cutting behavior wraps this - retry, timeout, logging, tracing, cache - and can it be removed without touching the happy path?",
+        "Scope: what resources are acquired, and what structurally guarantees release on every path including error and cancellation?",
+        "Substitutability: can this node be tested with only R substituted? If it would need the world mocked, what should be split out?"
+      ],
+      "produces": [
+        "channels (per symbol: shapes, A, cardinality, E, R, boundary, layers, scope)",
+        "hidden_r[]",
+        "split_proposals[]"
+      ],
+      "exit_criteria": [
+        "A is written as an ordered flow containing no error handling.",
+        "Cardinality is stated explicitly, with its consequences decided rather than defaulted.",
+        "Every break point in E has exactly one policy, and every retry has a bound.",
+        "This layer's outward error vocabulary is enumerated, and nothing from a lower layer leaks through it.",
+        "Every R is explicit and injected. Each hidden R found is either lifted into the signature or recorded as debt with a reason.",
+        "Untrusted input has exactly one parse point, and the trusted shape after it is named.",
+        "Every acquired resource has a structural release.",
+        "The node can be tested by substituting R alone. If it cannot, a split proposal is recorded before implementation begins, not after."
+      ],
+      "loop_back_if": "Annotating the channels shows the node cannot be made substitutable without splitting it, or that an error has nowhere sensible to be mapped. Return to `triage` - this is a design finding, not an implementation detail."
+    },
+    {
+      "id": "test",
+      "tier": 3,
+      "title": "Scenarios first",
+      "purpose": "Write the failing tests for this node before touching it.",
+      "ask": [
+        "One test per behavior, at minimum. Which behaviors from `triage` are on this node?",
+        "Does the test substitute R only, leaving the graph shape identical to production? If it needs more than that, the `channels` phase missed a hidden R.",
+        "Is there a test per break point in E, asserting the chosen policy - that the retry stops at its bound, that the fallback returns what was promised, that the propagated error carries this layer's vocabulary?",
+        "Which behaviors already have tests that must keep passing, and which are new?",
+        "All scenarios: happy path, each named failure, each input boundary, concurrency and duplication where applicable.",
+        "Which collaborators stay real? Default: all of them, in-process.",
+        "Which inputs are nondeterministic and must be pinned? Clock, random, identity, network, filesystem, env, locale, timezone, iteration order.",
+        "Does each test assert this node's observable behavior rather than that it called a collaborator?"
+      ],
+      "produces": [
+        "scenarios[]",
+        "pinned_nondeterminism[]",
+        "test_files[]"
+      ],
+      "sociable_rules": [
+        "Real collaborators by default. Do not fake something merely because it is a separate class.",
+        "Fake only nondeterminism and out-of-process I/O. That is the entire exception list.",
+        "Inject clock, randomness and identity. Fixed clock, seeded random, deterministic id sequence.",
+        "One scenario per test. The test name states the scenario.",
+        "No assertions on internal call sequences. If a spy is the only way to assert, the node does too much.",
+        "No shared mutable fixture, no ordering dependency between tests."
+      ],
+      "exit_criteria": [
+        "Happy-path tests exist and fail for the intended reason.",
+        "Every behavior with verdict new or modified has a test, and the test name states the behavior rather than the method.",
+        "Every E break point has a test for its policy. An unbounded retry or an untested fallback is a hole, not a detail.",
+        "The test's call graph differs from production's only in what sits behind R.",
+        "Every no_change_invariant is covered by an existing or new test.",
+        "Error scenarios may be listed rather than written - the `implement` E pass writes them."
+      ]
+    },
+    {
+      "id": "gate",
+      "tier": 4,
+      "title": "BEHAVIOR GATE",
+      "type": "gate",
+      "purpose": "Hard stop, evaluated per behavior. No production code is written for a behavior until its contract exists and its test is red for the intended reason.",
+      "granularity": "One gate evaluation per behavior, not per node. A node with four behaviors passes the gate four times, and may be implemented only up to the behaviors that have passed.",
+      "checks": [
+        {
+          "id": "G1",
+          "check": "The behavior exists in state with a verdict, a purpose it serves, and an owner - the aggregate or domain service whose invariant it enforces, or the application service or process manager whose sequence it belongs to.",
+          "owner_phase": "triage"
+        },
+        {
+          "id": "G2",
+          "check": "The symbol's contract is annotated: A flow, cardinality with its follow-on decisions, every E break point with exactly one policy, every R explicit and injected, the boundary parse point, the layers, the scope.",
+          "owner_phase": "channels"
+        },
+        {
+          "id": "G3",
+          "check": "Every retry policy has a bound. Every fallback states what the caller loses. Every propagate names the vocabulary it maps into.",
+          "owner_phase": "channels"
+        },
+        {
+          "id": "G4",
+          "check": "No hidden R remains unresolved - each is lifted into the signature or recorded as debt with a reason.",
+          "owner_phase": "channels"
+        },
+        {
+          "id": "G5",
+          "check": "The node is substitutable: it can be tested with only R replaced, graph shape unchanged. A recorded split_proposal blocks until it is scheduled or dismissed.",
+          "owner_phase": "channels"
+        },
+        {
+          "id": "G6",
+          "check": "A test for this behavior exists, names the behavior rather than the method, and is currently RED for the intended reason. The observed failure is recorded verbatim.",
+          "owner_phase": "test"
+        },
+        {
+          "id": "G7",
+          "check": "The test substitutes R only - real collaborators stay real, and only out-of-process and nondeterministic dependencies are replaced.",
+          "owner_phase": "test"
+        },
+        {
+          "id": "G8",
+          "check": "If the behavior crosses a seam: the seam contract is recorded, the compatibility direction is decided, the deploy order is chosen, and an executable contract test or schema check exists. A seam asserted only in prose fails this check.",
+          "owner_phase": "cross"
+        },
+        {
+          "id": "G9",
+          "check": "Every no_change invariant on this node is covered by a test that currently passes. These are the regression tests that prove the trace later.",
+          "owner_phase": "triage"
+        },
+        {
+          "id": "G10",
+          "check": "The trace has been revalidated at the current commit - no unresolved drift on this node or its seams.",
+          "owner_phase": "revalidate"
+        }
+      ],
+      "red_for_the_intended_reason": {
+        "why_it_matters": "A test that fails because a fixture is missing, an import is wrong or the suite does not compile for unrelated reasons proves nothing. Recording the observed failure is what makes the gate real rather than ceremonial.",
+        "valid": [
+          "An assertion failure describing the behavior that does not exist yet.",
+          "A compile or resolution error naming precisely the symbol about to be written - legitimate first-step red in statically typed languages.",
+          "A contract test failing on the specific field or status code being added."
+        ],
+        "invalid": [
+          "The suite fails to build for reasons unrelated to this behavior.",
+          "A fixture, factory or environment error.",
+          "A pre-existing failure that was already red before this work started - check it, do not inherit it.",
+          "An error whose message does not mention the behavior or symbol in question."
+        ],
+        "record": "The command run, the exit status, and the failure message. Stored on the gate ledger entry."
+      },
+      "on_fail": "Name the failing check and the phase that owns it, return there, and do not touch production code. Refuse the edit even if asked to proceed - the gate is the method's single hard constraint, and softening it removes the reason the rest exists.",
+      "on_pass": "Append a ledger entry: behavior id, checks passed, observed red failure, commit, timestamp. Then implement that behavior only.",
+      "exit_criteria": [
+        "A ledger entry exists for every behavior about to be implemented."
+      ],
+      "note": "The gate is also the resume guard. On resuming a session, a behavior with implementation started but no ledger entry is a violation - stop, and rebuild the missing contract and test before continuing."
+    },
+    {
+      "id": "implement",
+      "tier": 3,
+      "title": "Implement in passes",
+      "purpose": "Build the node in the order that keeps the happy path readable.",
+      "passes": [
+        {
+          "id": "A",
+          "title": "Happy behaviors",
+          "do": "Implement every behavior of kind `happy` on this node, following the A flow annotated in `channels`. No error handling, no edge cases, no logging - those are E and layers, and they come later precisely so A stays readable.",
+          "exit": "All happy behaviors green. The code's success path matches the annotated A, in the same order. If it does not, either the annotation was wrong or the implementation is - resolve which before continuing."
+        },
+        {
+          "id": "A_recheck",
+          "title": "Re-check behaviors",
+          "do": "With the happy path working, ask what the code revealed that triage missed. A branch you did not know existed, an input shape, a failure the dependency can actually return. Append them as behaviors with found_in: A_recheck, and write their tests now.",
+          "exit": "Behavior list updated in state. Every newly found behavior has been annotated, tested red, and passed the gate before any code was written for it.",
+          "note": "This pass exists because the predicted behavior list is always incomplete, and this is the cheapest moment to find out. A behavior discovered here does NOT get implemented on the spot: it returns through `channels`, `test` and `gate` first. A behavior found here that does not serve the node's purpose is still MISPLACED - route it, do not absorb it."
+        },
+        {
+          "id": "E",
+          "title": "Error behaviors",
+          "do": "Implement every break point annotated in E, with its chosen policy. Keep them structurally separate from the A flow - wrapper, guard clause, boundary handler, whatever the language offers. Map every received error into this layer's own vocabulary. Where two steps need divergent policies, handle those inline and mark it.",
+          "exit": "Every break point has a test and its annotated policy. Retries are bounded. Nothing from a lower layer leaks outward. Reading A is still possible without reading E."
+        },
+        {
+          "id": "finalize",
+          "title": "Finalize",
+          "do": "Wrap the annotated layers - retry, timeout, logging, tracing, metrics, cache - outside the node so its graph is unchanged. Attach the scope so every acquired resource is released on every path including error and cancellation. Then behaviors of kind `effect`, config and migration wiring, docs stating invariants, scaffolding removed, full suite run.",
+          "exit": "Full suite green. Repo shippable. Removing any layer would not require editing the happy path. Every acquired resource has a structural release. The node's purpose still describes every behavior it now has - if not, record the widening or the split."
+        }
+      ],
+      "exit_criteria": [
+        "All four passes complete for this node, in order."
+      ],
+      "loop_back_if": "The code contradicts the traced contract. Return to `trace` or `triage` rather than patching around it."
+    },
+    {
+      "id": "retrace",
+      "tier": 2,
+      "title": "Re-trace the changed node",
+      "purpose": "The graph is different now. Walk X and Z again from what you just edited.",
+      "ask": [
+        "Who calls this node now? Anyone new, or anyone the first trace missed?",
+        "What does it call now? Any dependency added during implementation?",
+        "Did the actual contract land where the triage predicted, or did it drift during implementation?",
+        "Does the code match the annotated graph - same A order, same E enumeration, same R? If it does not, the implementation is wrong, not the graph. Correct the code, or correct the annotation deliberately and say why.",
+        "At flow level: does the actual cross-node call order match the flow's node_sequence? A per-node conformance check passes happily while the flow through them is wrong, so this is the check that catches a reordered or short-circuited path.",
+        "Do the callers marked no_change still pass, untouched?"
+      ],
+      "produces": [
+        "new_nodes[]",
+        "contract_actual",
+        "trace_corrections[]"
+      ],
+      "exit_criteria": [
+        "Actual contract recorded and compared against the predicted contract_delta.",
+        "Conformance checked: the code's call graph, error enumeration and dependency list match the `channels` annotation. Any divergence is resolved in one direction or the other, never left as a silent mismatch.",
+        "Any node newly discovered is triaged and appended to the ordered change set.",
+        "Every no_change caller still passes."
+      ],
+      "loop_back_if": "A no_change node broke, or an untraced caller appeared. Return to `trace`. Do not edit the failing test to agree with the new code."
+    },
+    {
+      "id": "verify_requirement",
+      "tier": 0,
+      "title": "Close the loop",
+      "purpose": "Run the checks and let them decide. Closure is observed, not asserted.",
+      "runner": {
+        "order": [
+          "unit",
+          "contract",
+          "acceptance"
+        ],
+        "why": "Cheapest and most localizing first. A red unit test names the node; a red acceptance check only says the requirement is unmet.",
+        "commands": "Taken from the check manifest recorded at `acceptance`, run verbatim. The agent does not improvise the command, so the same thing is run every turn.",
+        "on_all_green": "The requirement is closed. Not because it looks done - because the check that was red before any code was written is now green.",
+        "on_acceptance_red_with_units_green": "The behaviors are right and the requirement is still unmet. This is the most informative failure in the method: either the graph delta missed a node, or the requirement was misunderstood at `language`. Read the expected-versus-observed diff before touching code.",
+        "on_flaky": "A check that passes on retry is not green. Fix the determinism - pinned time, seeded data, stable selectors, no sleeps - or the loop's closure means nothing."
+      },
+      "ask": [
+        "Did the acceptance check flip from red to green, and is that recorded with the command and output?",
+        "Are all behavior tests green, and every no_change invariant still passing?",
+        "For each ambiguity: did its assertion pass? An assumed expectation whose assertion passed is now confirmed; one that failed means the assumption was wrong, which is a requirement finding rather than a bug.",
+        "Which `assumed` bases had no assertion at all, and should the user see them now?",
+        "Did this turn produce new information - a different failure, a new node, a new behavior, a falsified assumption, a resolved unsure? If not, halt and escalate rather than spending another turn."
+      ],
+      "produces": [
+        "requirement_status",
+        "check_run_evidence",
+        "satisfied_by_behaviors[]",
+        "ambiguity_outcomes[]",
+        "turn_count",
+        "escalations[]"
+      ],
+      "exit_criteria": [
+        "The acceptance check went red to green, with the command and output recorded. A requirement marked done without that transition is not done - it is claimed.",
+        "Every behavior test green, every no_change invariant still passing, no check passing only on retry.",
+        "Every ambiguity resolved as confirmed, falsified, or escalated - falsified assumptions reported to the user rather than quietly corrected.",
+        "Requirement marked done, or blocked with the reason, or halted and escalated because a turn produced no new information.",
+        "Visualization regenerated."
+      ],
+      "next": "Next requirement by dependency order -> `acceptance` for it, reusing the glossary from `language`. If none remain, ascend to the task tier."
+    },
+    {
+      "id": "revalidate",
+      "tier": 2,
+      "title": "Drift check",
+      "purpose": "Confirm the trace still describes the code, after someone else changed it.",
+      "trigger": "On resume of any trace file. After any fetch, pull, merge or rebase. Before the first edit of each session. Before ascending a tier.",
+      "ask": [
+        "Run `design.py rebuild` first: the folds must match the log before any drift question is meaningful.",
+        "Which traced paths changed between traced_at_commit and now?",
+        "For each: does the recorded contract hash still match?",
+        "Did any traced node get renamed, moved or deleted?",
+        "Does each no_change invariant still hold in the new code?",
+        "For every seam: has the far side shipped since I traced it? Git in this repo cannot answer that - check the schema artifact's version, the provider's release or image tag, or run the contract test."
+      ],
+      "seam_drift": {
+        "why_it_is_different": "A seam can drift with no commit in this repo at all. The provider deployed; nothing here changed. This is the failure mode a git-only drift check silently misses.",
+        "how": [
+          "Pin what you can: commit the OpenAPI or proto artifact, and diff it on fetch.",
+          "Run the contract test - a red contract test is drift, not a flaky test.",
+          "Compare the provider's deployed version against the version recorded on the seam at trace time.",
+          "For a database seam, re-read the schema: a column, index or constraint added by someone else's migration is drift."
+        ],
+        "outcome": "Treat provider-side drift on a seam you consume exactly like `contract_drifted` on a local node: re-triage this seam and everything downstream of it."
+      },
+      "method": [
+        "git diff --name-only <traced_at_commit>...HEAD, intersected with the node paths. Three-dot, so a divergent branch compares against the merge base.",
+        "For each hit: compare blob_sha first (cheap). If changed, re-read the symbol and recompute the contract hash.",
+        "For a missing path: git log --follow --diff-filter=RD -- <path> to find the rename or deletion."
+      ],
+      "outcomes": {
+        "contract_intact": "The file changed but the contract did not. Update blob_sha and traced_at_commit. Proceed.",
+        "contract_drifted": "Re-triage this node and re-expand from it, since the delta may now propagate differently.",
+        "node_moved": "Update the path, keep the verdict and history, note the rename.",
+        "node_gone": "Return to `locate`. The seed assumption may no longer hold.",
+        "invariant_broken": "A no_change node's invariant no longer holds in the new code. Treat as a conflict to resolve with the other author, not as a test to fix."
+      },
+      "exit_criteria": [
+        "Every stale node has an outcome recorded. traced_at_commit updated for the whole trace."
+      ],
+      "two_drifts": {
+        "trace_vs_commit": "A trace file describes the code at traced_at_commit. Someone else's merge invalidates it. This is the git-diff check below.",
+        "snapshot_vs_codebase": "A model snapshot describes the domain as understood then. It is never updated - it is a record, and a record does not drift. What can be wrong is applying an old snapshot to today's code, so a new task captures its own."
+      }
+    },
+    {
+      "id": "close",
+      "tier": 1,
+      "title": "Ascend a tier",
+      "purpose": "Close the task, update the task graph, choose the next.",
+      "ask": [
+        "Which keywords led to the change set, and which were dead ends?",
+        "Where did the trace get it wrong, and which stop condition failed?",
+        "Which glossary terms were added or corrected, and does the code now agree with them?",
+        "Which dead alias is now worth retiring, and is that a follow-up task?",
+        "Which tasks are now unblocked, and which is next by dependency?",
+        "Does index.md report a divergence introduced by this task - one term defined two ways? That is a finding to resolve or escalate, not a merge to perform."
+      ],
+      "produces": [
+        "effective_keywords[]",
+        "dead_end_keywords[]",
+        "vocabulary_additions",
+        "weakest_phase",
+        "unblocked_tasks[]"
+      ],
+      "exit_criteria": [
+        "The ticket is marked closed through `design.py close`; the log and every snapshot stay in place.",
+        "index.md is regenerated and any divergence it reports is either resolved or escalated with a reason.",
+        "Task tier statuses and the rendered graph are current.",
+        "Next task selected by dependency, or the ticket is done."
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "preflight",
+      "to": "requirements",
+      "type": "advance"
+    },
+    {
+      "from": "requirements",
+      "to": "language",
+      "type": "advance"
+    },
+    {
+      "from": "language",
+      "to": "requirements",
+      "type": "loop_back",
+      "guard": "the model cannot express the requirement without contradiction"
+    },
+    {
+      "from": "language",
+      "to": "acceptance",
+      "type": "advance",
+      "note": "enters the loop for the first requirement"
+    },
+    {
+      "from": "acceptance",
+      "to": "keyword",
+      "type": "advance",
+      "guard": "acceptance check is red for the intended reason, or manual closure is recorded"
+    },
+    {
+      "from": "acceptance",
+      "to": "requirements",
+      "type": "loop_back",
+      "guard": "the requirement cannot be made observable - it is not yet a requirement"
+    },
+    {
+      "from": "keyword",
+      "to": "locate",
+      "type": "advance"
+    },
+    {
+      "from": "locate",
+      "to": "keyword",
+      "type": "loop_back",
+      "guard": "zero or only incidental hits"
+    },
+    {
+      "from": "locate",
+      "to": "trace",
+      "type": "advance"
+    },
+    {
+      "from": "trace",
+      "to": "cross",
+      "type": "advance",
+      "guard": "frontier resolved"
+    },
+    {
+      "from": "cross",
+      "to": "triage",
+      "type": "advance",
+      "guard": "every seam has a contract, compatibility and deploy order"
+    },
+    {
+      "from": "cross",
+      "to": "trace",
+      "type": "loop_back",
+      "guard": "a reachable far side introduced new nodes"
+    },
+    {
+      "from": "triage",
+      "to": "trace",
+      "type": "loop_back",
+      "guard": "unsure resolution revealed a new dependency"
+    },
+    {
+      "from": "triage",
+      "to": "order",
+      "type": "advance",
+      "guard": "no unsure remains"
+    },
+    {
+      "from": "order",
+      "to": "channels",
+      "type": "advance"
+    },
+    {
+      "from": "channels",
+      "to": "test",
+      "type": "advance",
+      "guard": "A, E and R annotated; node is substitutable"
+    },
+    {
+      "from": "channels",
+      "to": "triage",
+      "type": "loop_back",
+      "guard": "node cannot be made substitutable without splitting"
+    },
+    {
+      "from": "test",
+      "to": "gate",
+      "type": "advance",
+      "guard": "tests written and red"
+    },
+    {
+      "from": "gate",
+      "to": "implement",
+      "type": "advance",
+      "guard": "all checks pass for this behavior"
+    },
+    {
+      "from": "gate",
+      "to": "owner_phase",
+      "type": "loop_back",
+      "guard": "any check fails - return to the phase that owns it"
+    },
+    {
+      "from": "implement",
+      "to": "channels",
+      "type": "loop_back",
+      "guard": "A_recheck discovered a new behavior - annotate, test and gate it before implementing"
+    },
+    {
+      "from": "implement",
+      "to": "retrace",
+      "type": "advance",
+      "guard": "all four passes done"
+    },
+    {
+      "from": "implement",
+      "to": "triage",
+      "type": "loop_back",
+      "guard": "code contradicts the traced contract"
+    },
+    {
+      "from": "retrace",
+      "to": "trace",
+      "type": "loop_back",
+      "guard": "no_change node broke or untraced caller appeared"
+    },
+    {
+      "from": "retrace",
+      "to": "channels",
+      "type": "advance",
+      "guard": "nodes remain in the ordered change set"
+    },
+    {
+      "from": "retrace",
+      "to": "verify_requirement",
+      "type": "advance",
+      "guard": "change set exhausted"
+    },
+    {
+      "from": "verify_requirement",
+      "to": "trace",
+      "type": "loop_back",
+      "guard": "acceptance red while every unit test is green - the graph delta missed a node"
+    },
+    {
+      "from": "verify_requirement",
+      "to": "language",
+      "type": "loop_back",
+      "guard": "acceptance red because the requirement was misunderstood, not mis-implemented"
+    },
+    {
+      "from": "verify_requirement",
+      "to": "escalate",
+      "type": "halt",
+      "guard": "a turn produced no new information - report expected vs observed and stop"
+    },
+    {
+      "from": "verify_requirement",
+      "to": "acceptance",
+      "type": "advance",
+      "guard": "requirements remain - next turn of the loop"
+    },
+    {
+      "from": "verify_requirement",
+      "to": "close",
+      "type": "advance",
+      "guard": "all requirements for this task done"
+    },
+    {
+      "from": "close",
+      "to": "language",
+      "type": "advance",
+      "guard": "tasks remain, and the glossary needs extending for the next one"
+    },
+    {
+      "from": "close",
+      "to": "keyword",
+      "type": "advance",
+      "guard": "tasks remain and the glossary already covers them"
+    },
+    {
+      "from": "*",
+      "to": "revalidate",
+      "type": "interrupt",
+      "guard": "session resumed, or upstream changes pulled"
+    },
+    {
+      "from": "revalidate",
+      "to": "triage",
+      "type": "advance",
+      "guard": "contract_drifted"
+    },
+    {
+      "from": "revalidate",
+      "to": "locate",
+      "type": "advance",
+      "guard": "node_gone"
+    },
+    {
+      "from": "revalidate",
+      "to": "return",
+      "type": "advance",
+      "guard": "all intact - resume the interrupted phase"
+    }
+  ],
+  "greenfield_variant": {
+    "when": "keywords hit nothing because the capability does not exist",
+    "how": "Trace the closest analogue feature. Its subgraph is the template: same roles, same layering, same test shape. The change set mixes new nodes at the analogue's positions with existing nodes that must accept them.",
+    "note": "The entrypoint, wiring and config nodes always already exist, and they are where new features break old ones.",
+    "vocabulary": {
+      "problem": "The rule is to mine the model from existing code, and greenfield has none to mine. This is the one place in the method where naming is invention rather than discovery, so it gets guardrails instead of a prohibition.",
+      "sources_in_order": [
+        "The domain expert's or PM's own words for the concept - transcribe them before paraphrasing.",
+        "Sibling contexts' glossaries in this repo: a term already ratified elsewhere beats a new one.",
+        "The analogue feature's vocabulary, adapted - if refunds exist and you are adding credits, follow the refund vocabulary's shape.",
+        "Industry or regulatory language, when the domain has a standard word - the domain did not start with this codebase.",
+        "Last resort: coin it, and mark it as coined."
+      ],
+      "ratification": {
+        "rule": "An invented term is provisional until ratified. It is recorded with provenance `invented`, a proposer, and a ratified_by that starts null.",
+        "must_appear_in": "the acceptance check's name and the behavior statements, so the new word shows up in a committed artifact where a human will read it rather than only in a state file",
+        "gate": "The requirement gate reports every unratified invented term alongside the acceptance check. It does not block - it surfaces. A term nobody has agreed to is a rename waiting, and renames are cheapest before the code exists.",
+        "review_flag": "unratified terms are listed at `close` as the first item, since the glossary is the artifact that outlives the ticket"
+      },
+      "still_trace": "Greenfield does not skip the trace. The entrypoint, router, wiring, config, migrations and CI nodes all exist already, and the new capability must attach to them - that attachment is where new features break old ones."
+    }
+  },
+  "state": {
+    "directory": ".design/",
+    "shape": "One flat directory. Everything in it is temporal, captured at a commit, and never edited by a later task.",
+    "source_of_truth": "<ref>.log.jsonl - an append-only decision log. One line per decision. A reversal is a new line that supersedes an earlier one, never an edit to it.",
+    "derived": {
+      "<ref>.json": "tier 0-1, folded from the log",
+      "<ref>.<task-slug>.trace.json": "tier 2-3, folded from the log",
+      "<ref>.<task-slug>.model.json": "the domain as understood for that task",
+      "<ref>.<task-slug>.graph.md": "the rendered view of that task",
+      "index.md": "recall across every model snapshot, with divergences flagged"
+    },
+    "rule": "Never hand-edit a derived file. The next append rebuilds it and the edit is lost. Decide through the CLI; read the folds.",
+    "recall": "There is no shared mutable model, so there is nothing to forget to update and nothing to go stale. Two tasks that define one term differently produce a divergence in index.md - a finding, not a write that silently wins."
+  },
+  "tooling": {
+    "cli": "${CLAUDE_PLUGIN_ROOT}/scripts/design.py",
+    "why": "Hand-written JSON is how state ends up malformed and phases end up half-recorded. Every subcommand validates, appends one decision, re-folds and renders - so the graph reaches the transcript on every change without the agent electing to print it.",
+    "commands": {
+      "init": "design.py init --ref <REF> --title '<ticket title>'",
+      "requirement": "design.py requirement --id R1 --statement '<observable expectation>'",
+      "acceptance": "design.py acceptance --id R1 --altitude http|cli|browser|event|workflow|data --cmd '<check>' --red '<observed failure, before any code>'; later --green once it passes on its own; or --manual-owner '<who closes it>' --manual-evidence '<on what evidence>' for a requirement that genuinely cannot be automated",
+      "task": "design.py task --id T1 --slug <task-slug> --requirement R1",
+      "phase": "design.py phase <phase-id> [--slug <task-slug>]",
+      "node": "design.py node --slug <s> --path <p> --purpose '<capability>' --role <role> --verdict change|no_change|unsure [--stop-reason ABSORBED|MISPLACED|CROSSING|OPAQUE|VISITED|COMPLETE_UP|COMPLETE_DOWN|PASS_THROUGH|NO_ABSORPTION|CLEAR] [--belongs-in <path>  (required with MISPLACED)] [--depth N] [--evidence compiler|coverage|references|text|reasoning] [--why ...]",
+      "edge": "design.py edge --slug <s> --from <p> --to <p> --kind calls|invokes|requests|publishes|subscribes|reads_writes|provisions",
+      "behavior": "design.py behavior --slug <s> --id B1 --statement '<given X the caller sees Y>' --path <p> --symbol <sym> --status specified",
+      "gate": "design.py gate --slug <s> --id B1 --red '<observed failure, verbatim>' --cmd '<check>'",
+      "order": "design.py order --slug <s> --path <p> --n 1 --reason '<why here>'",
+      "term": "design.py term --slug <s> --term <T> --definition '<one sentence>' [--code a,b] [--dead c]",
+      "own": "design.py own --slug <s> --name <N> --role aggregate_root|entity|value_object|domain_service|application_service|repository|process_manager|read_model|anti_corruption_layer [--invariant '<rule>'] [--identity <IdType>  (for entity)] [--aggregate <A>  (required for repository)]",
+      "close": "design.py close",
+      "log": "design.py log [--tail N]   # the decisions, and the reversals among them",
+      "rebuild": "design.py rebuild      # re-fold every log; use on resume",
+      "show": "design.py show [--level 0-4] [--full  (every traced node, no view budget)]"
+    },
+    "refusals": [
+      "a verdict on a node with no purpose (principle 7)",
+      "a no_change verdict with no stop reason (principle 3)",
+      "a reversed verdict with no --why (principle 29c)",
+      "an acceptance record with neither --red nor --green - the requirement gate needs a check that was red before any code (principle 26)",
+      "a gate with no observed red evidence (principle 27)",
+      "an invariant on an application service (principle 19)",
+      "a task against a requirement that does not exist",
+      "closing a ticket with requirements still open (principle 11)",
+      "closing with a requirement marked done that has no recorded red evidence, or a behavior never gated (principle 2)",
+      "any decision on a closed ticket - appending would reopen it by side effect",
+      "any decision naming a task slug that does not exist - it would fold into nothing and look like it worked",
+      "a ticket ref or task slug that is not a dot-free, path-safe filename component",
+      "folding a decision log with an unreadable line - a dropped decision renders a stale conclusion",
+      "a MISPLACED stop with no --belongs-in - a behavior the purpose does not cover belongs in a node whose purpose does, or in one that does not exist yet (principle 7)",
+      "a repository recorded with no --aggregate - a repository stores exactly one aggregate root",
+      "a change or unsure verdict over a node that still carries a stop_reason, without --stop-reason CLEAR - the trace would keep showing a retracted stop",
+      "opening a task against a requirement with no recorded red acceptance evidence - no work on a requirement without a check that is red for it first (principle 26)",
+      "--stop-reason CLEAR with a no_change verdict - a no_change verdict requires a stop, so clearing one leaves the trace self-contradictory",
+      "a --manual-owner without --manual-evidence, or the reverse - half a manual-closure record is not a record",
+      "a --green whose --cmd differs from the command that went red - a different command is a different check and its red must be observed first",
+      "a --belongs-in that is neither a path nor 'new node: <path>' - a destination nothing can act on",
+      "manual-closure flags combined with --red or --green - two different decisions about how a requirement closes",
+      "--status green or gated on a behavior with no gate ledger entry - a status is a claim, the ledger entry with its observed red is the evidence",
+      "a task opened against a requirement that is done or descoped - that is not work this ticket is doing",
+      "--status green or gated on a behavior restated since it was gated - the gate proves the behavior as stated",
+      "descoping a requirement with no --why - descoping skips every evidence check, so the reason is the only record that it was a decision",
+      "closing with a requirement marked done that no behavior satisfies - a requirement with no behavior is not implemented (principle 8)",
+      "a behavior naming a requirement that does not exist - the requirement-to-behavior chain would be broken silently",
+      "re-recording an existing edge with a different kind - an edge carries one kind, and the second would be dropped silently or contradict the first",
+      "two nodes at one position in the ordered change set - it is the edit sequence, and a shared slot leaves it ambiguous which goes first"
+    ],
+    "hook": "hooks/hooks.json registers PostToolUse on Write|Edit|MultiEdit. Any write that lands in .design/ re-renders the tree and the index, so a direct edit by agent or human is caught too.",
+    "stop_reasons_note": "design.py's --stop-reason choices are exactly phases[trace].stop_conditions, plus one value that is not a stop condition: CLEAR. CLEAR retracts a stop recorded by an earlier decision and is valid only when the verdict moves to change or unsure - a no_change verdict requires a real stop. Adding a stop condition to the trace phase means adding it to the CLI, or the normal stop becomes unrecordable and agents record a false ABSORBED; scripts/test_design.py asserts both halves of that mirror.",
+    "acceptance_note": "Changing --cmd retracts any red_evidence and green transition recorded against the previous command: a different command is a different check, and evidence gathered against the old one proves nothing about the new one. Manual and automated closure are two modes of the same requirement and the latest decision picks one: recording a manual closure retracts any red/green evidence, and observing the check run retracts the manual closure. Neither is mixed, and a failure observed after a manual closure cannot be ignored by `close`. Changing altitude or harness retracts evidence exactly as changing --cmd does: each of the three redefines what is being checked.",
+    "gate_note": "The behavior gate is enforced by the ledger, not by the status field. `close` requires a gate_ledger entry carrying observed red evidence for every behavior, and `behavior --status green|gated` refuses without one - so the gate cannot be passed by declaring that it was. A gate proves the behavior AS STATED: the ledger entry records the statement it gated, and restating a behavior afterwards invalidates its gate until a fresh red is observed."
+  }
+}

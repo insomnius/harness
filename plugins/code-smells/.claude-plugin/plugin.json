@@ -1,0 +1,6 @@
+{
+  "name": "code-smells",
+  "version": "0.2.0",
+  "description": "Evidence-based code-smell reviews and focused refactoring, informed by Refactoring.Guru",
+  "author": { "name": "insomnius" }
+}

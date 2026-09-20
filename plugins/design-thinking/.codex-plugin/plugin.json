@@ -1,0 +1,19 @@
+{
+  "name": "design-thinking",
+  "version": "2.1.5",
+  "description": "Domain modeling, call-graph tracing, and test-driven implementation",
+  "author": {
+    "name": "Boon",
+    "url": "https://github.com/getboon"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Design Thinking",
+    "shortDescription": "Use Design Thinking in Codex.",
+    "longDescription": "Trace existing call graphs, name domain boundaries, and prove behavior with tests. Imported from getboon/boon-plugins.",
+    "developerName": "Boon",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Help me use Design Thinking."
+  }
+}

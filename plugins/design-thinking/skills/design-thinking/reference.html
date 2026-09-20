@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>design-thinking — a method for changing existing systems</title>
+<style>
+  :root{
+    /* Tokyo Night */
+    --bg:#1a1b26; --bg-deep:#16161e;
+    --panel:#1f2335; --panel2:#24283b;
+    --rule:#2f3549; --rule-hot:#3b4261;
+    --fg:#c0caf5; --dim:#8b95bb; --dimmer:#565f89;
+
+    /* status: blue<->amber axis only. no green/red pairing. */
+    --st-done:#7dcfff;     /* cyan     ✓ */
+    --st-doing:#bb9af7;    /* purple   ◐ */
+    --st-todo:#565f89;     /* dim      ○ */
+    --st-off:#7f89ad;      /* grey     ⊘ */
+    --st-warn:#ff9e64;     /* orange   ⚠ */
+    --st-fail:#f7768e;     /* pink     ✗ ⊗ */
+    --st-seam:#e0af68;     /* amber    ⇉ */
+
+    --neon:#7aa2f7;
+    --serif: ui-serif, "Iowan Old Style", Georgia, Cambria, serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  /* shapes-only: strip hue, keep glyph + weight + brightness */
+  body.shapes-only{
+    --st-done:#e6ebff; --st-doing:#c0caf5; --st-todo:#565f89;
+    --st-off:#6b7396; --st-warn:#f2f5ff; --st-fail:#ffffff; --st-seam:#a9b3d9;
+    --neon:#8b95bb;
+  }
+  body.shapes-only .g-fail,body.shapes-only .g-warn,body.shapes-only .g-die,body.shapes-only .g-gate,body.shapes-only .chip.red,body.shapes-only .chip.flake{text-decoration:underline; text-decoration-thickness:2px}
+  body.shapes-only .spine::before{box-shadow:none}
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font-family:var(--serif); font-size:17px; line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .bar{
+    position:sticky; top:0; z-index:20;
+    background:rgba(22,22,30,.94); backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--rule-hot);
+    padding:.55rem 1rem;
+    display:flex; align-items:center; gap:.7rem; flex-wrap:wrap;
+    font-family:var(--mono); font-size:11.5px;
+  }
+  .bar b{color:var(--neon); font-weight:600}
+  .bar span{color:var(--dimmer); flex:1 1 auto}
+  .bar button{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.03em;
+    color:var(--fg); background:var(--panel2);
+    border:1px solid var(--rule-hot); border-radius:2px;
+    padding:.3rem .5rem; cursor:pointer;
+  }
+  .bar button:hover{border-color:var(--neon); color:var(--neon)}
+  .bar button[aria-pressed="true"]{background:var(--neon); color:var(--bg-deep); border-color:var(--neon)}
+
+  .wrap{max-width:44rem; margin:0 auto; padding:0 1rem 5rem}
+  .spine{position:relative; padding-left:1.55rem}
+  .spine::before{
+    content:""; position:absolute; left:.31rem; top:.2rem; bottom:0; width:1px;
+    background:linear-gradient(180deg,var(--neon),#565f89 60%,transparent);
+    box-shadow:0 0 6px rgba(122,162,247,.5);
+  }
+  section{position:relative; padding:2.1rem 0 .4rem}
+  section::before{
+    content:""; position:absolute; left:-1.55rem; top:2.75rem;
+    width:9px; height:9px; border-radius:50%;
+    background:var(--bg); border:1.5px solid var(--dimmer);
+  }
+  section.mark::before{border-color:var(--neon); background:var(--neon); box-shadow:0 0 8px rgba(122,162,247,.7)}
+  section.hard::before{border-color:var(--st-warn); background:var(--st-warn); box-shadow:0 0 8px rgba(255,158,100,.6)}
+  section::after{
+    content:""; position:absolute; left:-1.15rem; top:3.2rem;
+    width:.85rem; height:1px; background:var(--rule-hot);
+  }
+
+  h1{font-size:1.85rem; line-height:1.18; margin:.2rem 0 .5rem; font-weight:600; letter-spacing:-.01em}
+  h2{
+    font-family:var(--mono); font-size:.82rem; font-weight:600;
+    letter-spacing:.08em; color:var(--neon); margin:0 0 .9rem;
+  }
+  section.hard h2{color:var(--st-warn)}
+  h3{font-size:1.02rem; margin:1.6rem 0 .4rem; font-weight:600; color:#dbe2fb}
+  h4{font-family:var(--mono); font-size:.76rem; letter-spacing:.06em; color:var(--dim); margin:1.4rem 0 .35rem; font-weight:600}
+  p{margin:.7rem 0}
+  a{color:var(--st-done)}
+  strong{font-weight:600; color:#dfe5fc}
+  em{color:var(--dim); font-style:italic}
+  .lede{font-size:1.1rem; color:var(--dim)}
+  .dim{color:var(--dim)}
+
+  pre{
+    font-family:var(--mono); font-size:11.5px; line-height:1.66;
+    background:var(--panel); border:1px solid var(--rule);
+    border-left:2px solid var(--rule-hot);
+    border-radius:2px; padding:.85rem .9rem; margin:1rem 0;
+    overflow-x:auto; color:var(--fg); -webkit-overflow-scrolling:touch;
+  }
+  pre.hero{background:transparent; border:0; padding:.2rem 0; font-size:12.5px; color:var(--dim)}
+  pre b{color:#e4e9ff; font-weight:600}
+  code{font-family:var(--mono); font-size:.86em; color:var(--dim)}
+  p code, li code, td code{background:var(--panel2); padding:.08em .32em; border-radius:2px; color:#c6d2f5}
+
+  /* status classes — hue is never the only cue: weight + glyph + label carry it too */
+  .g-done{color:var(--st-done); font-weight:600}
+  .g-doing{color:var(--st-doing); font-weight:600}
+  .g-todo,.g-dim{color:var(--st-todo)}
+  .g-off{color:var(--st-off)}
+  .g-warn{color:var(--st-warn); font-weight:600}
+  .g-fail{color:var(--st-fail); font-weight:600}
+  .g-seam{color:var(--st-seam); font-weight:600}
+  .g-gate{color:var(--st-warn); font-weight:600}
+  .g-die{color:var(--st-fail); font-weight:600}
+
+  .lg{font-family:var(--mono); font-size:11px; line-height:2; color:var(--dim)}
+  .lg b{font-weight:600}
+
+  .hardrule{
+    border-left:2px solid var(--st-warn); background:var(--panel);
+    padding:.8rem .95rem; margin:1rem 0; border-radius:0 2px 2px 0;
+  }
+  .hardrule p{margin:.25rem 0}
+  .hardrule .n{font-family:var(--mono); font-size:.7rem; color:var(--st-warn); letter-spacing:.08em}
+
+  ol.pr{list-style:none; counter-reset:pr; padding:0; margin:.6rem 0}
+  ol.pr li{counter-increment:pr; position:relative; padding:.42rem 0 .42rem 2.4rem; border-top:1px solid var(--rule)}
+  ol.pr li:first-child{border-top:0}
+  ol.pr li::before{
+    content:counter(pr); position:absolute; left:0; top:.5rem;
+    font-family:var(--mono); font-size:.72rem; color:var(--neon);
+    width:1.7rem; text-align:right;
+  }
+  ol.pr li.sub{counter-increment:none}
+  ol.pr li.sub::before{content:attr(data-n); color:var(--st-off); letter-spacing:-.02em}
+  ol.pr li b{display:block; font-weight:600; color:#dfe5fc}
+  ol.pr li span{color:var(--dim); font-size:.94rem}
+
+  .scroll{overflow-x:auto; margin:1rem 0; -webkit-overflow-scrolling:touch}
+  table{border-collapse:collapse; width:100%; font-size:.88rem}
+  th,td{text-align:left; padding:.45rem .6rem; border-top:1px solid var(--rule); vertical-align:top}
+  th{font-family:var(--mono); font-size:.68rem; letter-spacing:.07em; color:var(--dim); font-weight:600; border-top:0}
+  td:first-child{font-family:var(--mono); font-size:.8rem; white-space:nowrap; color:var(--fg)}
+  table.wide td:first-child{white-space:normal}
+
+  /* status chip: glyph + word, so a cell never depends on hue */
+  .chip{
+    font-family:var(--mono); font-size:.7rem; letter-spacing:.04em;
+    border:1px solid currentColor; border-radius:2px;
+    padding:.05rem .3rem; white-space:nowrap; font-weight:600;
+  }
+  .chip.pass{color:var(--st-done)}
+  .chip.red{color:var(--st-fail)}
+  .chip.flake{color:var(--st-warn)}
+  .chip.na{color:var(--st-todo); border-style:dashed}
+
+  details{border-top:1px solid var(--rule); padding:.15rem 0}
+  details summary{
+    cursor:pointer; padding:.6rem 0; font-family:var(--mono);
+    font-size:.78rem; letter-spacing:.03em; color:var(--dim);
+    list-style:none; display:flex; justify-content:space-between; gap:1rem;
+  }
+  details summary::-webkit-details-marker{display:none}
+  details summary::after{content:"+"; color:var(--neon)}
+  details[open] summary::after{content:"–"}
+  details[open] summary{color:var(--fg)}
+  details .body{padding:0 0 .8rem}
+
+  nav.idx{margin:1.4rem 0 0; border-top:1px solid var(--rule)}
+  nav.idx a{
+    display:flex; gap:.7rem; align-items:baseline;
+    padding:.5rem .1rem; border-bottom:1px solid var(--rule);
+    text-decoration:none; color:var(--fg); font-size:.95rem;
+  }
+  nav.idx a i{font-family:var(--mono); font-size:.7rem; color:var(--neon); font-style:normal; min-width:1.4rem}
+  nav.idx a:hover, nav.idx a:focus{background:var(--panel)}
+
+  ul.plain{padding-left:1.1rem; margin:.6rem 0}
+  ul.plain li{margin:.3rem 0}
+  ul.plain li::marker{color:var(--dimmer)}
+
+  footer{
+    margin-top:3rem; padding-top:1.2rem; border-top:1px solid var(--rule-hot);
+    font-family:var(--mono); font-size:11px; color:var(--dimmer); line-height:1.9;
+  }
+  :focus-visible{outline:2px solid var(--neon); outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
+  @media (min-width:700px){
+    body{font-size:18px}
+    h1{font-size:2.3rem}
+    pre{font-size:12.5px}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <b>design-thinking</b><span>18 phases · 2 gates · 5 tiers</span>
+  <button id="tg" aria-pressed="false">shapes only</button>
+</div>
+
+<div class="wrap">
+<div class="spine">
+
+<section class="mark" id="top">
+<h2>THE NOTATION</h2>
+<h1>A ticket names a behavior. The code is a graph.</h1>
+<p class="lede">The work is finding which nodes the behavior touches, proving it, changing them in the right order, and keeping the map honest as it changes underneath you.</p>
+
+<pre class="hero">   X   →   <b>Y</b>   →   Z
+   │       │       │
+   │       │       └─ what Y calls          <span class="g-dim">downstream</span>
+   │       └───────── <b>the node in hand</b>
+   └───────────────── what calls Y          <span class="g-dim">upstream</span>
+           │
+           ├─ <b>A</b>  what flows through on success
+           ├─ <b>E</b>  where it breaks, and what happens then
+           └─ <b>R</b>  what it needs to exist</pre>
+
+<p>A node is a file with one purpose; a symbol inside it; a behavior inside that. An edge is a call, an import, an invocation, a request, a publish, shared state, or a provisioning relationship. The graph does not stop at the process boundary.</p>
+
+<nav class="idx">
+  <a href="#loop"><i>01</i> Work is a loop</a>
+  <a href="#rules"><i>02</i> The two hard rules</a>
+  <a href="#tiers"><i>03</i> Five tiers</a>
+  <a href="#phases"><i>04</i> Eighteen phases</a>
+  <a href="#principles"><i>05</i> Forty-three principles</a>
+  <a href="#channels"><i>06</i> A, E, R</a>
+  <a href="#gates"><i>07</i> The gates in full</a>
+  <a href="#domain"><i>08</i> Translating the requirement</a>
+  <a href="#seams"><i>09</i> Crossing to other systems</a>
+  <a href="#output"><i>10</i> Output is a multi-level graph</a>
+  <a href="#state"><i>11</i> State is a log</a>
+  <a href="#deps"><i>12</i> Dependencies</a>
+  <a href="#files"><i>13</i> Files, install, tuning</a>
+</nav>
+</section>
+
+<section id="loop">
+<h2>01 · WORK IS A LOOP</h2>
+<p>Not a pipeline. One turn takes one natural-language requirement and ends when an automated check says it is satisfied.</p>
+
+<pre>        natural language requirement
+                    │
+   ┌────────────────▼────────────────┐
+   │ <b>DECIPHER</b>   prose → graph delta   │  requirements · language
+   │                                 │  keyword · locate · trace
+   │                                 │  cross · triage · order
+   └────────────────┬────────────────┘
+   ┌────────────────▼────────────────┐
+   │ <b>SPECIFY</b>    done, made runnable   │  acceptance  <span class="g-fail">red</span>  requirement
+   │                                 │  channels+test <span class="g-fail">red</span> behavior
+   └────────────────┬────────────────┘
+   ┌────────────────▼────────────────┐
+   │ <b>GATE</b>       ten checks, blocking │
+   └────────────────┬────────────────┘
+   ┌────────────────▼────────────────┐
+   │ <b>CHANGE</b>     passes, then retrace  │
+   └────────────────┬────────────────┘
+   ┌────────────────▼────────────────┐
+   │ <b>CLOSE</b>      unit → contract → e2e │  <span class="g-done">green</span> closes it
+   │                                 │  <span class="g-fail">red</span> routes back
+   └────────────────┬────────────────┘
+                    │
+      next requirement, warmer glossary</pre>
+
+<p><strong>Closure is observed, not asserted.</strong> A requirement is closed when a check that was red before any code went green on its own — never because the work looks done. An agent judging its own output is the weakest evidence available, and replacing that judgment is the point of the loop.</p>
+
+<h3>Reading the close</h3>
+<div class="scroll">
+<table>
+<tr><th>unit</th><th>contract</th><th>accept</th><th>means</th></tr>
+<tr><td><span class="chip pass">✓ pass</span></td><td><span class="chip pass">✓ pass</span></td><td><span class="chip pass">✓ pass</span></td><td>closed, with the red→green transition recorded</td></tr>
+<tr><td><span class="chip pass">✓ pass</span></td><td><span class="chip pass">✓ pass</span></td><td><span class="chip red">✗ red</span></td><td><strong>behaviors right, requirement unmet</strong> — the most informative failure in the method</td></tr>
+<tr><td><span class="chip pass">✓ pass</span></td><td><span class="chip red">✗ red</span></td><td><span class="chip red">✗ red</span></td><td>the seam is wrong → <code>cross</code></td></tr>
+<tr><td><span class="chip red">✗ red</span></td><td><span class="chip na">— n/a</span></td><td><span class="chip red">✗ red</span></td><td>a behavior is wrong → <code>implement</code></td></tr>
+<tr><td><span class="chip pass">✓ pass</span></td><td><span class="chip pass">✓ pass</span></td><td><span class="chip flake">⚠ on retry</span></td><td>not green. Fix the check's determinism</td></tr>
+</table>
+</div>
+
+<p>Row two routes two ways, and guessing is expensive. Either the graph delta <strong>missed a node</strong> — back to <code>trace</code>, with the acceptance failure as the new seed — or the requirement was <strong>misunderstood</strong> at translation time, and no amount of implementation fixes that. Read the expected-versus-observed diff before choosing. Guessing here produces the worst outcome available: correct code, wrong feature, everything green except the one check that mattered.</p>
+
+<h3>Two things that keep the loop honest</h3>
+<p><strong>Ambiguities become assertions.</strong> Every assumed expectation in the ambiguity register gets an assertion in the acceptance check. When one fails, the assumption was wrong — that is a requirement finding to report, not a bug to quietly fix, and it catches a misunderstanding before it ships.</p>
+<p><strong>Stop rather than grind.</strong> Halt on the first turn with the acceptance check still red that produces no new failure, node, behavior, falsified assumption, resolved <code>unsure</code>, or new diagnosis of the same failure; report the diff, what was tried each turn, and the likeliest misreading of the requirement, then ask.</p>
+</section>
+
+<section class="hard" id="rules">
+<h2>02 · THE TWO HARD RULES</h2>
+<p>Everything else in the skill is tunable guidance. These are constraints.</p>
+
+<div class="hardrule">
+  <p class="n">REQUIREMENT GATE</p>
+  <p>No work on a requirement until an automated check for it exists and is red for the intended reason.</p>
+</div>
+<div class="hardrule">
+  <p class="n">BEHAVIOR GATE</p>
+  <p>No code for a behavior until its contract is annotated and its test is red for the intended reason.</p>
+</div>
+
+<p>Same discipline at two altitudes. The behavior gate stops you writing unspecified code; the requirement gate stops you writing code toward an undefined outcome. Both are recorded in a ledger, so a resumed session cannot skip them — a behavior with implementation started and no ledger entry is a violation, not a state to continue from.</p>
+
+<p><strong>Red for the intended reason</strong> is the check that does the work and the one most easily faked. An assertion failure describing the missing behavior counts. A resolution error naming precisely the symbol about to be written counts — that is legitimate first-step red in a typed language. A broken harness, a missing fixture, or a failure inherited from someone else's commit does not. Know what was already red before you started.</p>
+
+<p>The gate refuses to be talked past. An agent that can be argued into skipping it does not have a gate.</p>
+</section>
+
+<section id="tiers">
+<h2>03 · FIVE TIERS</h2>
+<div class="scroll">
+<table>
+<tr><th>tier</th><th>node</th><th>id</th><th>lives in</th></tr>
+<tr><td>0</td><td>requirement</td><td>R1</td><td>&lt;ref&gt;.json</td></tr>
+<tr><td>1</td><td>task / sub-task</td><td>T1, T1.2</td><td>&lt;ref&gt;.json</td></tr>
+<tr><td>2</td><td>file, or seam</td><td>path, seam:http:…</td><td>trace.json</td></tr>
+<tr><td>2f</td><td><strong>flow</strong> — end-to-end path</td><td>F1</td><td>trace.json</td></tr>
+<tr><td>3</td><td>symbol</td><td>function, job, step</td><td>trace.json</td></tr>
+<tr><td>4</td><td><strong>behavior</strong></td><td>B1</td><td>trace.json</td></tr>
+</table>
+</div>
+<p>Tier 4 is where the method operates. You do not change a file, you change a behavior. Requirements are satisfied by behaviors; behaviors are proven by tests. That chain is the only accepted evidence of done — which also means a requirement with no behaviors is not implemented, however much code was written.</p>
+<p>Tier 2 exists for addressing and drift detection. Tiers 0 and 1 are shared across a ticket, so each task gets its own trace file rather than re-reading the whole ticket's graph every turn.</p>
+</section>
+
+<section id="phases">
+<h2>04 · EIGHTEEN PHASES</h2>
+<div class="scroll">
+<table class="wide">
+<tr><th>phase</th><th>does</th></tr>
+<tr><td>preflight</td><td>dependencies present, existing state, check manifest, and what was already failing before any work</td></tr>
+<tr><td>requirements</td><td>split the ticket into verifiable expectations; register every ambiguity with the expectation being assumed</td></tr>
+<tr><td>language</td><td>translate into the domain's own words; classify each subdomain; give each behavior an owning role; map the contexts</td></tr>
+<tr><td class="g-warn">▲ acceptance</td><td><strong>requirement gate</strong> — a red automated check at the altitude where the requirement is observable</td></tr>
+<tr><td>keyword</td><td>derive search terms from the glossary, including the dead aliases the code still uses</td></tr>
+<tr><td>locate</td><td>seed nodes from the search hits; record the rejected ones too</td></tr>
+<tr><td>trace</td><td>walk up to callers and down to callees until the change is absorbed</td></tr>
+<tr><td>cross</td><td>continue through seams; decide compatibility and deploy order</td></tr>
+<tr><td>triage</td><td>verdict every behavior; route the misplaced ones to where their purpose fits</td></tr>
+<tr><td>order</td><td>sequence edits and deploys so each lands on a stable base</td></tr>
+<tr><td>channels</td><td>annotate A, E, R, cardinality, boundary, layers, scope</td></tr>
+<tr><td>test</td><td>write the behavior's test; make it red</td></tr>
+<tr><td class="g-warn">▲ gate</td><td><strong>behavior gate</strong> — ten blocking checks, one evaluation per behavior</td></tr>
+<tr><td>implement</td><td>four passes: happy → re-check → errors → finalize</td></tr>
+<tr><td>retrace</td><td>walk X and Z again; confirm the code matches the annotated graph</td></tr>
+<tr><td>verify_requirement</td><td>run the checks and let them close the loop; route the failure</td></tr>
+<tr><td>revalidate</td><td>drift check against others' commits and providers' deploys</td></tr>
+<tr><td>close</td><td>ascend to the task tier; update the glossary so the next ticket starts warmer</td></tr>
+</table>
+</div>
+
+<h3>The phase set is computed, not chosen</h3>
+<p>There are no lanes. Each phase carries a predicate over the change itself: <code>cross</code> runs only when a seam is on the path, <code>order</code> only when more than one node changes, <code>channels</code> annotates only the delta for a body-only change, <code>language</code> degenerates to a lookup when every term already resolves. So a one-line fix runs a handful of phases and a cross-service migration runs all eighteen, with nobody picking a mode — the picking is where judgement leaks out. Skipped phases are stated once in the first status tree, since a phase silently not run is indistinguishable from one forgotten.</p>
+<p>Both gates are exempt. On a one-line fix they cost one red test and one contract annotation; skipping them saves minutes and forfeits the method.</p>
+
+<h3>The loop-back edges matter as much as the forward ones</h3>
+<ul class="plain">
+<li>A failing test on a node marked <em>unaffected</em> means the trace was wrong, not the test. That inversion makes the test suite the validator of the analysis.</li>
+<li>A behavior discovered <em>during</em> implementation returns through annotation, test and gate before any code is written for it.</li>
+<li>Reality contradicting the model sends you back to the model, not around it.</li>
+<li>Resolving an <code>unsure</code> that reveals a new dependency reopens the trace.</li>
+</ul>
+
+<h4>WHERE EXPANSION STOPS</h4>
+<div class="scroll">
+<table class="wide">
+<tr><th>outcome</th><th>meaning</th></tr>
+<tr><td class="g-done">✓ ABSORBED</td><td>the neighbour's contract is unchanged. The normal stop — record the invariant that must hold</td></tr>
+<tr><td class="g-fail">⊗ MISPLACED</td><td>the change reaches here but this node's purpose does not cover it. Route it; do not absorb it</td></tr>
+<tr><td class="g-seam">⇉ CROSSING</td><td>a seam. Not a stop — keep tracing with different mechanics</td></tr>
+<tr><td class="g-off">▪ OPAQUE</td><td>genuinely unreachable: third party, vendored binary, no access. Rarer than it looks</td></tr>
+<tr><td class="g-done">✓ COMPLETE_UP</td><td>the flow's entrypoint is reached. Upstream is finished by construction, not by a hop count</td></tr>
+<tr><td class="g-done">✓ COMPLETE_DOWN</td><td>a leaf, or a seam whose far side is opaque</td></tr>
+<tr><td class="g-off">▪ PASS_THROUGH</td><td>three hops that transform nothing — a delegation chain. Collapse to its two ends and continue from the far one</td></tr>
+<tr><td class="g-fail">⚠ NO_ABSORPTION</td><td>still propagating at the entrypoint, so nothing absorbed it. A finding, not a stop: re-seed, or report that the path has no absorption point</td></tr>
+</table>
+</div>
+<p><strong>Depth is not the stop condition; absorption is.</strong> Keep expanding while the change's effect reaches the neighbour, and stop at the node that swallows it or at a structural end.</p>
+<p><strong>Caller count decides nothing — compatibility does.</strong> Forty-seven callers of a shared type cost nothing when the delta is additive, so upstream is not expanded at all. One caller costs a migration when it is breaking, and then the set is enumerated exhaustively: with a compiler where there is one, with a coverage run where there is not. If neither is available, the contract is not broken in place — the new shape is added beside the old and migrated under observation.</p>
+
+<h4>EVIDENCE HAS TIERS, LANGUAGES DO NOT HAVE MOODS</h4>
+<div class="scroll">
+<table>
+<tr><th>tier</th><th>source</th><th>gives</th></tr>
+<tr><td>1</td><td>compiler</td><td>the exhaustive caller set, including interface dispatch</td></tr>
+<tr><td>2</td><td>coverage</td><td>the empirical caller set — strongest evidence with no compiler</td></tr>
+<tr><td>3</td><td>references</td><td>static references, usually missing dynamic dispatch</td></tr>
+<tr><td>4</td><td>text</td><td>identifiers and strings; the only tier that finds routes and name-based registration</td></tr>
+<tr><td>5</td><td>reasoning</td><td>about DI, reflection, metaprogramming, framework registration</td></tr>
+</table>
+</div>
+<p>Those five names are canonical — they are the values <code>design.py --evidence</code> accepts, and a hedged variant of one is not a tier at all.</p>
+<p>A contract-changing symbol needs tier 1 or 2; anything weaker is <code>unsure</code>, and <code>unsure</code> must be resolved before the gate — which is what actually forces the coverage run to happen. A dynamic language is not condemned to guessing, it is condemned to running its tests.</p>
+</section>
+
+<section id="principles">
+<h2>05 · FORTY-THREE PRINCIPLES</h2>
+<p>Forty-three statements: thirty-one numbered, plus twelve lettered refinements that sharpen a parent rather than stand alone. The method, with no tools in it. Everything else in the skill illustrates one of these in some stack. <strong>When a recipe conflicts with a principle, the principle wins.</strong> When a stack is not covered, ask the principle's question and find that stack's answer — a language with no compiler still has dependencies, they just get written down instead of proven.</p>
+
+<h4>WORK</h4>
+<ol class="pr">
+<li><b>Work is a loop.</b><span>Natural language in, a graph delta in the middle, a green automated check out.</span></li>
+<li><b>Closure is observed, not asserted.</b><span>Done means a check that was red went green on its own.</span></li>
+<li><b>Stop rather than grind.</b><span>Report the pattern across failures instead of attempting a fourth time.</span></li>
+</ol>
+
+<h4>THE GRAPH</h4>
+<ol class="pr" start="4" style="counter-reset:pr 3">
+<li><b>The graph already exists.</b><span>Discover it; do not invent it. Code, tests, table names and commit history hold the model already.</span></li>
+<li><b>Nodes and edges.</b><span>File, symbol, behavior. Calls, imports, invocations, requests, publishes, shared state, provisioning.</span></li>
+<li><b>Trace both directions.</b><span>Up to callers, down to callees, stopping at absorption.</span></li>
+<li class="sub" data-n="6b"><b>Count decides nothing; compatibility does.</b><span>Many callers cost nothing when the delta is additive; one costs a migration when it is breaking.</span></li>
+<li class="sub" data-n="6c"><b>Evidence has tiers.</b><span>compiler, coverage, references, text, reasoning. A contract change needs one of the top two; weaker is <code>unsure</code>.</span></li>
+<li><b>Reachable is not the same as belongs.</b><span>A change reaching a node whose purpose does not cover it is misplaced.</span></li>
+<li class="sub" data-n="7b"><b>Deletion is a delta.</b><span>Removing a node, a dead alias or a displaced rule is a change like any other, and gets traced like one.</span></li>
+<li><b>Behavior is the unit.</b><span>Requirements are satisfied by behaviors; behaviors are proven by tests.</span></li>
+<li class="sub" data-n="8b"><b>The behavior statement and the test name are the same sentence.</b><span>If they differ, one of the two is describing something nobody asked for.</span></li>
+<li><b>The code is the graph.</b><span>A mismatch means the implementation is wrong, not the graph.</span></li>
+<li class="sub" data-n="9b"><b>A belongs to a flow.</b><span>The success path is a property of the end-to-end path; a node's A is its slice of the flow's A.</span></li>
+</ol>
+
+<h4>EVERY NODE</h4>
+<ol class="pr" style="counter-reset:pr 9">
+<li><b>Three channels.</b><span>What flows, where it breaks, what it needs — annotated before the node is written.</span></li>
+<li><b>The success path reads alone.</b><span>If following it means stepping over retries and catches, they are tangled.</span></li>
+<li><b>Errors are named values with one policy each.</b><span>Retry with a bound, fall back with a stated loss, propagate in this layer's words, or die.</span></li>
+<li><b>Dependencies are explicit.</b><span>An ambient dependency is invisible in the signature and is why a node cannot be tested.</span></li>
+<li class="sub" data-n="13b"><b>Dependencies point inward.</b><span>The domain depends on nothing; adapters depend on the domain, never the reverse.</span></li>
+<li><b>Parse once, at the edge.</b><span>Trust nothing at the boundary and everything inside it.</span></li>
+<li class="sub" data-n="14b"><b>Make illegal states unrepresentable.</b><span>Push validity into the type where the language allows it, so the invalid case cannot be constructed.</span></li>
+<li><b>Cleanup is structural.</b><span>If an early return or a cancellation can skip it, the resource is not scoped.</span></li>
+<li><b>Substitutability is a design property.</b><span>Needing to fake the world to test one node means the node does too much.</span></li>
+</ol>
+
+<h4>MEANING</h4>
+<ol class="pr" style="counter-reset:pr 16">
+<li><b>Translate before searching.</b><span>The code usually speaks an older dialect than the ticket, so search the dead names too.</span></li>
+<li class="sub" data-n="17b"><b>Investment follows subdomain.</b><span>Core gets the model; supporting and generic get the shortest thing that works.</span></li>
+<li><b>One term, one meaning, one context.</b><span>Two names for a concept is debt. One name for two concepts is a bug waiting.</span></li>
+<li><b>Invariants and sequences live in different places.</b><span>A rule with nowhere to live means a concept has no name yet.</span></li>
+<li><b>Consistency has a boundary.</b><span>Two boundaries changing atomically means the boundary is wrong, or it is a policy.</span></li>
+</ol>
+
+<h4>BOUNDARIES BETWEEN SYSTEMS</h4>
+<ol class="pr" style="counter-reset:pr 20">
+<li><b>A seam is a node.</b><span>It has a contract, and it can drift while both sides' code stays still.</span></li>
+<li><b>Crossing translates.</b><span>Errors most of all. That mapping is where two systems' bugs live.</span></li>
+<li><b>Completeness is unavailable across a published seam.</b><span>Compatibility replaces it.</span></li>
+<li class="sub" data-n="23b"><b>What cannot be enumerated can be observed.</b><span>Replace "who calls this" with a measurement of who actually does.</span></li>
+<li><b>Relationship predicts blast radius.</b><span>Knowable before tracing, from how the two systems relate.</span></li>
+<li><b>Rollout is bidirectional.</b><span>Old callers against the new provider, and new callers against the old one.</span></li>
+</ol>
+
+<h4>DISCIPLINE</h4>
+<ol class="pr" style="counter-reset:pr 25">
+<li><b>Specify before building, at both altitudes.</b><span>These two are the constraints; the rest is guidance.</span></li>
+<li><b>Red for the intended reason.</b><span>Know what was already failing before you started.</span></li>
+<li><b>Discovery during implementation is information, not friction.</b><span>It returns through annotation, test and gate.</span></li>
+<li><b>A trace is valid only at the commit it was taken against.</b><span>Others commit; providers deploy.</span></li>
+<li class="sub" data-n="29b"><b>The trace is the memory; context is a cache.</b><span>A verdict or a purpose not written down is lost at the next compaction.</span></li>
+<li class="sub" data-n="29c"><b>Log the decision, not the state.</b><span>State is a fold over decisions, so a reversal keeps the reason that moved it.</span></li>
+<li><b>A failing test on a node you marked unaffected means the trace was wrong.</b><span>Not the test.</span></li>
+<li><b>Report as a graph.</b><span>Prose explains the graph; it does not replace it.</span></li>
+<li class="sub" data-n="31b"><b>One source of truth; every view is rendered.</b><span>The state files are derived, never hand-edited, so the views cannot disagree.</span></li>
+</ol>
+</section>
+
+<section id="channels">
+<h2>06 · A, E, R</h2>
+<p>Annotate the flow's <strong>A</strong> first, then each node's three channels in this order: <strong>shapes → A → cardinality → E → R → boundary → layers → scope</strong>. The order is load-bearing. Doing E before A is how a happy path becomes unreadable.</p>
+
+<h3>Shapes come first</h3>
+<p>You cannot draw the graph until you know what flows through it.</p>
+<div class="scroll">
+<table>
+<tr><th>shape</th><th>is</th><th>why</th></tr>
+<tr><td>record</td><td>an entity that flows</td><td>names the thing, in the domain's words</td></tr>
+<tr><td>id</td><td>identity, constrained</td><td>a bare string accepts every other string</td></tr>
+<tr><td>variant</td><td>the closed set of legal states</td><td>makes illegal states unrepresentable</td></tr>
+<tr><td>error</td><td>a named value with context</td><td>a string error can only be logged, not handled</td></tr>
+</table>
+</div>
+
+<h3>A — the happy path</h3>
+<pre>loadOrder → checkPolicy → recordRefund → publishEvent</pre>
+<p>That graph <em>is</em> the program structure. The rule with teeth: A must read top to bottom with no error handling interleaved.</p>
+
+<h3>E — where it breaks</h3>
+<div class="scroll">
+<table>
+<tr><th>policy</th><th>when</th><th>must also record</th></tr>
+<tr><td class="g-warn">↻ retry</td><td>transient: timeout, rate limit, lock conflict</td><td>the bound — attempts, backoff, budget</td></tr>
+<tr><td class="g-done">⤵ fallback</td><td>recoverable: default, cache, degraded answer</td><td>what the caller loses</td></tr>
+<tr><td class="g-off">↑ propagate</td><td>the caller's problem</td><td>the vocabulary it maps into</td></tr>
+<tr><td class="g-fail">✷ die</td><td>invariant violated, programmer error</td><td>nothing — do not catch it</td></tr>
+</table>
+</div>
+<p>An unbounded retry is an outage amplifier, not resilience. A failure handled by accident is the same as unhandled.</p>
+
+<h4>EACH LAYER SCOPES ITS OWN E</h4>
+<pre>repository      service          handler           transport
+SqlError    →   DatabaseError →  RefundRejected →  422 + code
+SqlTimeout  →   DatabaseError →  Unavailable    →  503
+                PolicyDenied  →  RefundRejected →  422 + code
+                (unmapped)    →  <span class="g-die">die</span>            →  500 + alert</pre>
+<p>A layer enumerates what <em>it</em> received and maps it into its own words. Two failures to watch for: <strong>leaking</strong>, a driver error reaching a caller unchanged so it couples to your storage engine; and <strong>collapsing</strong>, two errors the caller must distinguish arriving as one.</p>
+
+<h3>R — what the node needs</h3>
+<p>Complete this sentence for every dependency: <em>we cannot do this without that.</em> A hidden R is the core failure — a global, a singleton, the wall clock, a random source, an env read mid-function. Invisible in the signature, and precisely why a node cannot be tested without mocking the world.</p>
+<pre>production                  test
+handler                     handler
+ → RefundService             → RefundService
+   → PostgresOrderRepo         → InMemoryOrderRepo
+   → HttpLedgerClient          → StubLedgerClient
+   → time.Now                  → fixedClock</pre>
+<p>Same graph shape, same A, same E possible — only what sits behind R changes. Which doubles as a design check: <strong>if you have to mock the world to test one node, the node is doing too much.</strong></p>
+
+<details>
+<summary>cardinality, boundary, layers, scope</summary>
+<div class="body">
+<h4>CARDINALITY</h4>
+<p><code>one</code> needs nothing further. <code>many</code> requires deciding ordering, backpressure, completion, and what a mid-stream failure means — "the tenth item failed after nine committed" has no safe default. <code>time_bounded</code> requires a cache key, a TTL, and whether concurrent identical lookups deduplicate. A <code>many</code> node implemented as <code>one</code> is the bug where only the first page is ever processed.</p>
+<h4>BOUNDARY</h4>
+<p>One parse point at the edge, with one definition serving as type, validator and transformer. Validation appearing inside a node means either the boundary is not doing its job or a caller is bypassing it.</p>
+<h4>LAYERS</h4>
+<p>Retry, timeout, logging, tracing, metrics, caching, auth — composed outside the node so its graph is unchanged. The test: could you delete the logging without touching the happy path?</p>
+<h4>SCOPE</h4>
+<p>Every acquired resource needs release guaranteed on every exit path including error and cancellation. Cleanup is a language construct, not a convention.</p>
+</div>
+</details>
+</section>
+
+<section class="hard" id="gates">
+<h2>07 · THE GATES IN FULL</h2>
+
+<h3>Requirement gate</h3>
+<div class="scroll">
+<table class="wide">
+<tr><th>id</th><th>check</th></tr>
+<tr><td>Q1</td><td>an acceptance check exists, committed as a spec at the chosen altitude</td></tr>
+<tr><td>Q2</td><td>it runs and is red for the intended reason, with the failure recorded</td></tr>
+<tr><td>Q3</td><td>every assumed ambiguity has an assertion, or is escalated as untestable</td></tr>
+<tr><td>Q4</td><td>deterministic: time pinned, data seeded, selectors stable, no sleeps</td></tr>
+<tr><td>Q5</td><td>the command is in the check manifest, so the loop re-runs it without improvising</td></tr>
+</table>
+</div>
+<p>The harness follows the altitude, never preference: a user-visible flow gets a browser check, an HTTP contract an API check, a command a CLI check, an event a consumer check, a pipeline a real run, a migration a seeded database. Two altitudes for one requirement means it is two requirements.</p>
+
+<h3>Behavior gate</h3>
+<div class="scroll">
+<table class="wide">
+<tr><th>id</th><th>check</th><th>owner</th></tr>
+<tr><td>G1</td><td>behavior has a verdict, a purpose it serves, and an owning role from role_routing</td><td>triage</td></tr>
+<tr><td>G2</td><td>contract annotated: A, cardinality, E policies, R, boundary, layers, scope</td><td>channels</td></tr>
+<tr><td>G3</td><td>every retry bounded, every fallback states its loss, every propagate names its vocabulary</td><td>channels</td></tr>
+<tr><td>G4</td><td>no unresolved hidden R</td><td>channels</td></tr>
+<tr><td>G5</td><td>substitutable with R alone; no open split proposal</td><td>channels</td></tr>
+<tr><td>G6</td><td>test exists, names the behavior, red for the intended reason</td><td>test</td></tr>
+<tr><td>G7</td><td>test substitutes R only — real collaborators stay real</td><td>test</td></tr>
+<tr><td>G8</td><td>if it crosses a seam: contract recorded, compatibility decided, deploy order chosen, executable check exists</td><td>cross</td></tr>
+<tr><td>G9</td><td>every unaffected-node invariant is covered by a passing test</td><td>triage</td></tr>
+<tr><td>G10</td><td>trace revalidated at the current commit, no unresolved drift</td><td>revalidate</td></tr>
+</table>
+</div>
+<p>Evaluated <strong>per behavior</strong>, not per node. A node with four behaviors passes four times, and may be implemented only up to the behaviors that passed. That is what makes the re-check pass work: when implementation reveals a behavior nobody predicted, it does not get written on the spot.</p>
+<p>G8 catches the one people skip. A seam contract asserted only in prose fails the gate, because nothing will tell you when it stops being true.</p>
+</section>
+
+<section id="domain">
+<h2>08 · TRANSLATING THE REQUIREMENT</h2>
+<p>A PM's prose is neither searchable nor assignable. Translation happens first, and it is <strong>mined from what exists</strong> — the model is already in the codebase's table names, type names, test names and commit history, usually in an older dialect than the ticket. A glossary the code does not share is just a second vocabulary to maintain.</p>
+
+<h4>THE GLOSSARY HAS FOUR COLUMNS BECAUSE THE DISAGREEMENTS ARE THE POINT</h4>
+<div class="scroll">
+<table>
+<tr><th>domain term</th><th>product says</th><th>code says</th><th>dead aliases</th></tr>
+<tr><td>Refund</td><td>money back</td><td>Refund, refund_records</td><td>Reversal, chargeback_v1</td></tr>
+<tr><td>Ledger Entry</td><td>transaction</td><td>LedgerEntry</td><td>journal_line</td></tr>
+<tr><td>Refund Policy</td><td>refund rules</td><td><span class="g-fail">nothing</span> — implicit</td><td>—</td></tr>
+</table>
+</div>
+<p>Dead aliases are recorded deliberately: skipping them is the commonest reason a trace misses the node that matters. And a concept with <em>no</em> name in code lives scattered across whatever files happened to need it — which is exactly how rules end up inside application services. Naming it is often the actual work of the ticket.</p>
+
+<h3>Every behavior goes to one of two homes</h3>
+<pre>"a refund may not exceed the remaining balance"
+   → invariant     → the Order aggregate
+
+"after a refund, write a ledger entry and email the customer"
+   → sequence      → the RefundOrchestrator
+
+"a refund over 10,000 needs manager approval"
+   → invariant, but on what? Not on Order's balance.
+   → <span class="g-gate">a RefundPolicy concept is missing. Name it, then it has a home.</span></pre>
+<p>An application service's purpose reads as a sequence. If it reads as a rule, a rule has migrated into it. Threshold comparisons and status checks inside an application service, a process manager or a controller are almost always displaced invariants.</p>
+<p><strong>One transaction, one aggregate.</strong> If a behavior needs two to commit atomically, either the boundary is wrong or it is a policy: emit an event, handle it eventually, name the compensation.</p>
+<p><strong>Widening a purpose is not the agent's to grant.</strong> For a misplaced behaviour there are exactly two options available without a human: place it in a node whose purpose already covers it, or create a node whose purpose does. Widening an existing purpose is a third option requiring ratification — recorded with the current purpose, the proposed one, and what else the wider statement would then admit. An escape hatch reachable without approval is the path of least resistance, and it is how a purpose quietly becomes "whatever landed here".</p>
+</section>
+
+<section id="seams">
+<h2>09 · CROSSING TO OTHER SYSTEMS</h2>
+<p>The graph continues over HTTP, RPC, queues, databases and infrastructure config. A seam is a node — <code>seam:http:POST /v2/refunds</code>, <code>seam:topic:refund.recorded</code>, <code>seam:table:orders</code> — with a contract in five parts, of which usually only the first is written down anywhere.</p>
+<div class="scroll">
+<table>
+<tr><th>part</th><th>covers</th><th>hides in</th></tr>
+<tr><td>shape</td><td>request, response, payload, columns</td><td>OpenAPI, proto, migration</td></tr>
+<tr><td>errors</td><td>status codes, RPC codes, DLQ conditions</td><td><span class="g-fail">usually nowhere</span></td></tr>
+<tr><td>translation</td><td>how errors map outward, and back</td><td><span class="g-fail">usually nowhere</span></td></tr>
+<tr><td>semantics</td><td>idempotency, ordering, delivery, timeouts</td><td><span class="g-fail">usually nowhere</span></td></tr>
+<tr><td>auth</td><td>who may call, with what scope</td><td>gateway or mesh config</td></tr>
+</table>
+</div>
+<p>The four undocumented parts cause the outages. A consumer retrying a non-idempotent endpoint is not violating a written contract — it is violating one nobody wrote.</p>
+
+<h3>Relationship predicts blast radius, before any tracing</h3>
+<div class="scroll">
+<table class="wide">
+<tr><th>relationship</th><th>their change reaches</th><th>so</th></tr>
+<tr><td>anti-corruption layer</td><td><span class="g-done">shallow</span> — the ACL node only</td><td>trace to the ACL and stop — it absorbs</td></tr>
+<tr><td>published language</td><td><span class="g-done">shallow</span> — the artifact, then your adapter</td><td>diff the artifact</td></tr>
+<tr><td>conformist</td><td><span class="g-fail">deep</span> — your whole domain</td><td>keep tracing; widest blast radius</td></tr>
+<tr><td>shared kernel</td><td><span class="g-fail">deep</span> — both, bidirectionally</td><td>the only legitimate lockstep deploy</td></tr>
+<tr><td>customer–supplier</td><td><span class="g-warn">negotiated</span> — on their schedule</td><td>a task-tier blocking edge</td></tr>
+<tr><td>separate ways</td><td><span class="g-off">none</span> — by design</td><td>a trace crossing here means a mistake</td></tr>
+</table>
+</div>
+<p>A seam to a foreign context with <strong>no ACL and no published language</strong> is the highest-risk shape available: you have taken on their model with no translation point, so every change of theirs is an unbounded change of yours. Worth raising even when the ticket did not ask.</p>
+
+<h3>Two asymmetries</h3>
+<p><strong>Provider-side caller sets are unprovable.</strong> In-process, the compiler enumerates every caller. Across a published seam you get evidence, never proof — so stop chasing a complete upstream trace and make the contract compatible instead. Anything removed or narrowed is breaking, however few consumers were found.</p>
+<p><strong>Seam drift needs its own check.</strong> A seam can drift with no commit in your repo at all: the provider deployed, nothing here changed. Git cannot see that, so the seam records the provider version at trace time, and revalidation diffs the artifact, runs the contract test, or compares the deployed version.</p>
+
+<h4>DEPLOY ORDER IS A TABLE, NOT A JUDGMENT CALL</h4>
+<div class="scroll">
+<table class="wide">
+<tr><th>change</th><th>order</th></tr>
+<tr><td>additive provider</td><td>provider first — consumers cannot use what is not there</td></tr>
+<tr><td>removal</td><td>consumer first — the provider cannot remove what is still called</td></tr>
+<tr><td>in-place shape change</td><td><span class="g-fail">never</span> — split into additive plus removal</td></tr>
+<tr><td>new required field</td><td>provider accepts it optional first</td></tr>
+<tr><td>stricter validation</td><td>provider last — it is a removal of tolerance</td></tr>
+<tr><td>column add / drop</td><td>migration first / code first, migration later</td></tr>
+</table>
+</div>
+<p>The rollout window is the skipped part: both directions must hold. Old callers against the new provider, <em>and</em> new callers against the old one. The second is what breaks during a canary and during a rollback.</p>
+</section>
+
+<section class="mark" id="output">
+<h2>10 · OUTPUT IS A MULTI-LEVEL GRAPH</h2>
+<p>Status is reported as a tree at every transition — before the first edit, after each behavior closes, at every loop close, and on resume. <strong>Not a flat list.</strong> Sibling bullets under a requirement hide who calls whom, which is the one thing the notation exists to show, and they hide the edit order with it.</p>
+
+<pre>R2 partial refunds                        <span class="g-doing">◐</span>  turn 2/3 · accept <span class="g-die">✗</span>
+└─ T4 refund handler                      <span class="g-doing">◐</span>  4/7 behaviours
+   │
+   <span class="g-dim">⋯&gt;</span> .github/workflows/deploy.yml   <span class="g-dim">d-2</span> #6 <span class="g-dim">○</span>  gate <span class="g-dim">—</span>
+      │  deploy                                 B9<span class="g-dim">○</span>
+      └<span class="g-dim">─→</span> http/refund_handler.go     <span class="g-dim">d-1</span> #5 <span class="g-doing">◐</span>  gate <span class="g-done">✓</span>
+         │  Handle                              B7<span class="g-done">✓</span> B8<span class="g-doing">◐</span>
+         ├<span class="g-dim">─→</span> order/refund_service.go <span class="g-dim">d0</span><span class="g-warn">★</span> #3 <span class="g-done">✓</span>  gate <span class="g-done">✓</span>
+         │  │  RecordRefund                     B4<span class="g-done">✓</span> B5<span class="g-done">✓</span> B6<span class="g-done">✓</span>
+         │  │  <span class="g-dim">A: load→policy→record→publish · one · 4E · 4R</span>
+         │  ├<span class="g-dim">─→</span> order/repository.go  <span class="g-dim">d+1</span> #1 <span class="g-done">✓</span>
+         │  │  └<span class="g-seam">─⇄</span> seam:table orders     #2 <span class="g-done">✓</span> <span class="g-dim">additive column</span>
+         │  ├<span class="g-dim">─→</span> pkg/money/money.go   <span class="g-dim">d+1</span>    <span class="g-off">⊘ absorbed · fan-in 47</span>
+         │  ├<span class="g-seam">─⇉</span> seam:http /v2/ledger <span class="g-dim">d+1</span> #4 <span class="g-done">✓</span> <span class="g-dim">additive · provider first</span>
+         │  │  └<span class="g-dim">─→</span> payments:ledger/api.go <span class="g-dim">d+2</span> <span class="g-done">✓</span> <span class="g-dim">far side</span>
+         │  └<span class="g-die">─⊗</span> notify/mailer.go        <span class="g-dim">B11 → notify/dispatcher.go</span>
+         └<span class="g-dim">─→</span> order/policy.go         <span class="g-dim">d+1    ⊘ absorbed</span>
+   <span class="g-warn">↩</span> worker/reconcile.rb            <span class="g-dim">d-1</span>    <span class="g-warn">⚠</span> <span class="g-dim">drifted a3f91c2 · re-triage</span>
+                                                <span class="g-dim">(also calls RecordRefund)</span>
+
+<span class="g-die">✗</span> accept: expected order status 'closed', got 'reopened'
+  → units green, accept red: the delta missed a node, or R2 was misread</pre>
+
+<p class="lg">
+<span class="g-done">✓</span> <b>done</b> &nbsp; <span class="g-doing">◐</span> <b>doing</b> &nbsp; <span class="g-todo">○</span> <b>todo</b> &nbsp; <span class="g-off">⊘</span> <b>absorbed</b> &nbsp; <span class="g-warn">?</span> <b>unsure</b> &nbsp; <span class="g-fail">⊗</span> <b>misplaced</b> &nbsp; <span class="g-warn">⚠</span> <b>drift</b> &nbsp; <span class="g-warn">★</span> <b>seed</b> &nbsp; <span class="g-todo">—</span> <b>not gated</b><br>
+<span class="g-off">→</span> <b>calls</b> &nbsp; <span class="g-off">⋯&gt;</span> <b>invokes</b> &nbsp; <span class="g-seam">⇉</span> <b>requests</b> &nbsp; <span class="g-seam">⇄</span> <b>reads/writes</b> &nbsp; <span class="g-off">⊢</span> <b>provisions</b> &nbsp; <span class="g-warn">↩</span> <b>shared</b> &nbsp; ↺ <b>cycle</b><br>
+<span class="g-off">Every status is carried by its glyph and its word as well as its colour. Hue is
+never the only cue — use <b>shapes only</b> in the bar to drop colour entirely.</span></p>
+
+<h3>One tree, five tiers</h3>
+<p>Requirement, task, node chain, symbol, behaviors — indentation is call depth, not category. The tree is rooted at the entrypoint-most node reached, so it reads in the direction the system actually runs. The seed is marked <span class="g-warn">★</span> because it is where the search landed, not where the flow starts.</p>
+
+<h3>Depth labels restore direction</h3>
+<p><code>d-1</code> is a caller, <code>d+1</code> a callee, signed relative to the seed. Past two levels of nesting, indentation alone stops telling you which way an edge points, and the sign puts it back.</p>
+
+<h3>Order markers are the edit plan</h3>
+<p><code>#1 #2 #3</code> are positions in the ordered change set. Deep nodes carry low numbers because callees go first — so a node numbered <em>lower</em> than its own parent is correct and expected, while a node numbered higher than something it depends on is a sequencing bug the shape makes visible. The tree plus the numbers is the whole plan; nothing else needs to state it.</p>
+
+<h3>A shared node is expanded once</h3>
+<p>Second and later parents get <code>↩ path (expanded above)</code>. Expanding twice doubles the tree and hides that the node is shared — and shared nodes are precisely the ones whose contract must not change casually. Cycles get <code>↺</code> and are never followed.</p>
+
+<h3>Detail goes where the motion is</h3>
+<div class="scroll">
+<table>
+<tr><th>level</th><th>shows</th></tr>
+<tr><td>L0</td><td>requirement only, with check results</td></tr>
+<tr><td>L1</td><td>requirements and tasks</td></tr>
+<tr><td>L2</td><td>the node tree with statuses — <strong>the default</strong></td></tr>
+<tr><td>L3</td><td>adds symbols</td></tr>
+<tr><td>L4</td><td>adds behaviors, gates and channels</td></tr>
+</table>
+</div>
+<p>Default output is L2 across the tree with only the node in motion expanded to L4. A full L4 tree of a real trace is unreadable and buries the one node that matters.</p>
+
+<h3>Draw the changed subgraph, not the whole trace</h3>
+<p>Nodes that change, the path connecting them, and <strong>one hop of absorption frontier</strong>. Everything else traced and unaffected is omitted — not collapsed — behind a single line: <code>⊕ 14 nodes traced, unaffected (L2-full to show)</code>.</p>
+<p>The distinction that matters: an absorbed node <em>adjacent to a changing node</em> is evidence of where the change stopped, so it stays drawn. An absorbed node three hops away is just something the trace ruled out, and it does not earn a line every time the graph prints. The absorbed set only grows, and re-printing it each turn teaches the reader to skim the whole thing. The evidence stays in the trace file, and <code>L2-full</code> draws everything when a reviewer asks why a node was ruled out.</p>
+
+<h3>Past a seam, keep nesting</h3>
+<p>Far-side nodes carry their service prefix and hang off the seam node, since the seam is the thing holding the contract. The graph spans services in one tree rather than stopping at the wire.</p>
+
+<p class="dim">The artifact form of the same information goes to <code>.design/&lt;ref&gt;.&lt;task-slug&gt;.graph.md</code> — one per task — on every state write: context map, file graph, channel view, requirement→behavior→test coverage chain, deploy sequence.</p>
+</section>
+
+<section id="state">
+<h2>11 · STATE IS A LOG</h2>
+<p><code>.design/&lt;ref&gt;.log.jsonl</code> is the source: one decision per line, append-only. Everything else under <code>.design/</code> is derived from it and rebuilt on every write.</p>
+<div class="scroll">
+<table class="wide">
+<tr><th>fold</th><th>holds</th></tr>
+<tr><td>&lt;ref&gt;.json</td><td>tiers 0–1 — requirements and tasks</td></tr>
+<tr><td>&lt;ref&gt;.&lt;task&gt;.trace.json</td><td>tiers 2–4 — nodes, symbols, behaviors</td></tr>
+<tr><td>&lt;ref&gt;.&lt;task&gt;.model.json</td><td>the domain as understood while doing that task</td></tr>
+<tr><td>&lt;ref&gt;.&lt;task&gt;.graph.md</td><td>the rendered views</td></tr>
+<tr><td>index.md</td><td>recall across snapshots — two tasks defining one term differently surface as a divergence, not a silent overwrite</td></tr>
+</table>
+</div>
+
+<h3>A reversal is a new line, never an edit</h3>
+<p>A verdict that went <code>no_change → change</code> because a compiler error moved it is worth more than the verdict it replaced, so the log keeps both and the CLI refuses a reversal with no <code>--why</code>. The state says what was decided; the log says what decided it, and that is the part worth reading on the next ticket.</p>
+
+<h3>Decide through the CLI, read the folds</h3>
+<pre>design.py init        --ref ENG-1234 --title "partial refunds"
+design.py requirement --id R1 --statement "a partial refund below the balance succeeds"
+design.py acceptance  --id R1 --altitude http --cmd "go test ./acceptance -run Refund" \
+                      --red "expected 200 with status closed, got 422"
+design.py node        --slug refund --path order/service.go --role aggregate_root \
+                      --purpose "protects the invariant that refunds never exceed the balance" \
+                      --verdict change --depth 0 --evidence compiler
+design.py gate        --slug refund --id B5 --red "expected InsufficientBalance, got &lt;nil&gt;"
+design.py log         <span class="g-dim"># the decisions, and the reversals among them</span></pre>
+<p>Each subcommand validates, appends one decision, re-folds and renders — so the status tree reaches the transcript on every change without anyone electing to print it.</p>
+<p>What it refuses is the point: a verdict on a node with no purpose, a <code>no_change</code> with no stop reason, a reversal with no reason, a gate with no observed red evidence, an invariant on an application service, and a close with requirements still open. A rule the CLI enforces is a rule that cannot be skipped under time pressure, which is the difference between a method and a suggestion.</p>
+<p class="dim">A <code>PostToolUse</code> hook redraws the tree on any write under <code>.design/</code>, so the graph stays visible without being asked for.</p>
+</section>
+
+<section id="deps">
+<h2>12 · DEPENDENCIES</h2>
+<p>Two third-party skills. The method stands without either — <code>preflight</code> reports absence and continues.</p>
+<div class="scroll">
+<table class="wide">
+<tr><th>skill</th><th>does</th></tr>
+<tr><td>ponytail<br><span class="dim">DietrichGebert</span></td><td>lazy-senior-dev minimality: the shortest solution that works. YAGNI, stdlib before dependencies, shortcuts marked with <code>ponytail:</code> comments naming their upgrade path</td></tr>
+<tr><td>caveman<br><span class="dim">JuliusBrussee</span></td><td>strips articles, filler and hedging from prose; code blocks and error messages quoted exactly</td></tr>
+</table>
+</div>
+
+<h3>Where ponytail hands off</h3>
+<div class="scroll">
+<table class="wide">
+<tr><th>phase</th><th>handoff</th></tr>
+<tr><td>locate</td><td>before seeding a new node — does the platform, stdlib or framework already cover this? A capability that exists needs no node</td></tr>
+<tr><td>greenfield</td><td>the same question, harder. The cheapest new node is the one never created</td></tr>
+<tr><td>triage</td><td>among valid change sets, prefer the one touching fewest nodes and adding no abstraction</td></tr>
+<tr><td>implement:A</td><td>the smallest happy path that turns the behaviour green</td></tr>
+<tr><td>retrace</td><td><code>ponytail-review</code> over the diff, with its deletions checked against the behaviour list</td></tr>
+</table>
+</div>
+<p>Its question — <em>does something already do this?</em> — is the same one <code>locate</code> asks as prior art, which makes it a real fit rather than a bolt-on. And its <code>ponytail:</code> shortcut comments are exactly what this method calls accepted debt, so each is recorded in state with its upgrade path at finalize.</p>
+
+<h3>The conflict, and where the line falls</h3>
+<p>ponytail wants the shortest thing that works. The behaviour gate wants an annotated contract, one policy per break point, a single parse point, a structural release. These look opposed and are not:</p>
+<div class="hardrule">
+  <p class="n">PRECEDENCE</p>
+  <p>Minimality applies to the implementation. Specification is not negotiable. The smallest code satisfying every annotated behaviour is what both want.</p>
+</div>
+<p>So <code>ponytail-review</code> may propose deleting anything no behaviour claims — genuinely useful, and unclaimed code is a real finding. It may not delete an error policy, a boundary parse, a scoped release or a test. "No behaviour asked for this error handling" means the E annotation is missing, not that the handling is surplus.</p>
+
+<h3>What caveman may not compress</h3>
+<ul class="plain">
+<li>the status tree — it is the report, not commentary on it</li>
+<li>gate verdicts and which check failed; a compressed refusal is an unclear one</li>
+<li>red evidence: command, exit status, failure message, verbatim</li>
+<li>the expected-versus-observed line on a red check</li>
+<li>a falsified assumption reported back to you — the loop's highest-value output, and the thing most damaged by terseness</li>
+<li>anything escalated for a human decision</li>
+</ul>
+<p>Compression on narration is safe here for a structural reason: caveman leaves code blocks and error messages exactly as written, and all of the above except the prose is a block.</p>
+<p class="dim">One honest note: in ponytail's own agentic benchmark, caveman measured slightly <em>above</em> the no-skill baseline on tokens, cost and time, because agentic cost is dominated by file reading and tool calls rather than prose. Install it because the padding annoys you, not as a cost strategy.</p>
+
+<pre>/plugin marketplace add DietrichGebert/ponytail
+/plugin install ponytail@ponytail        <span class="g-off"># two separate prompts</span>
+
+/plugin marketplace add JuliusBrussee/caveman
+/plugin install caveman@caveman</pre>
+</section>
+
+<section id="files">
+<h2>13 · FILES, INSTALL, TUNING</h2>
+
+<pre>/plugin marketplace add getboon/boon-plugins
+/plugin install design-thinking@boon-plugins</pre>
+<p>Install the plugin, not the skill folder. <code>scripts/</code> and <code>hooks/</code> sit at the plugin root and every phase decides through the CLI, so a copied <code>skills/design-thinking/</code> is the prose with none of the state. <code>INSTALL.md</code> has the local and per-repo routes, which have to copy <code>scripts/</code> beside the skill for its template lookup to resolve.</p>
+
+<div class="scroll">
+<table class="wide">
+<tr><th>file</th><th>contents</th></tr>
+<tr><td>SKILL.md</td><td>what Claude Code loads: rules, protocol, reporting</td></tr>
+<tr><td>principles.md</td><td>the method in 43 tool-free statements — precedence over all the rest</td></tr>
+<tr><td>graph.json</td><td>phases, tiers, stop conditions, schemas. Edit this to tune the method</td></tr>
+<tr><td>loop.md</td><td>the loop, both gates, harness selection, the check manifest, the stop condition</td></tr>
+<tr><td>gate.md</td><td>the ten checks, verifying red-for-the-right-reason, the ledger</td></tr>
+<tr><td>shapes.md</td><td>records, ids, variants, errors; A/E/R; boundary, layers, scope, per language</td></tr>
+<tr><td>domain.md</td><td>ubiquitous language, subdomains, aggregates, the role taxonomy, events, context map</td></tr>
+<tr><td>tracing.md</td><td>evidence tiers, cross-language edges, reading purpose off existing code</td></tr>
+<tr><td>crossing.md</td><td>seams: consumer discovery, error translation, deploy order, seam drift</td></tr>
+<tr><td>visualize.md</td><td>the status graph, and the Mermaid views</td></tr>
+<tr><td>ticket.template.json</td><td>tier 0–1, the shape the decision log folds into</td></tr>
+<tr><td>trace.template.json</td><td>tier 2–4 state, one per task</td></tr>
+<tr><td>task-model.template.json</td><td>the domain as understood for one task</td></tr>
+<tr><td>lang/*.md</td><td>one per stack: walk up, walk down, prove R, render A/E/R, drift, what defeats tracing</td></tr>
+<tr><td>scripts/design.py</td><td>the CLI — one subcommand per decision; validates, appends, re-folds, renders</td></tr>
+<tr><td>scripts/fold.py</td><td>decision log → the state documents it implies</td></tr>
+<tr><td>scripts/render_graph.py</td><td>the status tree, the per-task Mermaid graph, and the index</td></tr>
+<tr><td>hooks/hooks.json</td><td>PostToolUse — redraw on any write under .design/</td></tr>
+</table>
+</div>
+
+<details>
+<summary>no lanes, no dials</summary>
+<div class="body">
+<p>Nothing here is a threshold to tune. Every decision that looked like a setting derives from a property of the change instead.</p>
+<div class="scroll">
+<table class="wide">
+<tr><th>instead of</th><th>the rule</th></tr>
+<tr><td>a fan-in threshold</td><td>additive deltas never expand upstream; breaking deltas are enumerated with a compiler or a coverage run; unenumerable ones are not broken in place. Count affects drawing only</td></tr>
+<tr><td>a depth limit</td><td>upstream ends at the flow's entrypoint, downstream at a leaf or opaque seam. Three transform-free hops are a pass-through to collapse. Still propagating at the entrypoint is a finding, not a limit</td></tr>
+<tr><td>a lane or mode</td><td>each phase carries a predicate — <code>cross</code> only with a seam on the path, <code>order</code> only with more than one node changing, <code>channels</code> annotates only the delta on a body-only change. Both gates always apply</td></tr>
+<tr><td>a turn cap</td><td>halt on the first turn that ends red having produced no new information — no new failure, node, behaviour, falsified assumption or resolved unsure. That can fire on turn two</td></tr>
+<tr><td>"dynamic languages, hesitate more"</td><td>an evidence ladder: <code>compiler</code> → <code>coverage</code> → <code>references</code> → <code>text</code> → <code>reasoning</code>. A contract change needs one of the top two; anything weaker is <code>unsure</code> and must be resolved before the gate</td></tr>
+<tr><td>an escape hatch for purpose</td><td>the agent may place a behaviour where a purpose covers it, or create a node whose purpose does. Widening an existing purpose needs human ratification</td></tr>
+</table>
+</div>
+<p>The one number left is the view budget — 28 printed lines — and it affects drawing only, never a decision.</p>
+</div>
+</details>
+
+<details>
+<summary>install</summary>
+<div class="body">
+<p><strong>Plugin</strong> — shared through <code>getboon/boon-plugins</code>, and the route worth taking: it is the only one that ships the CLI and the hook together with the prose, and the method only compounds if everyone's traces and glossaries land in the same shape.</p>
+<pre>boon-plugins/
+├── .claude-plugin/marketplace.json
+└── plugins/design-thinking/
+    ├── .claude-plugin/plugin.json
+    ├── hooks/hooks.json
+    ├── scripts/design.py
+    └── skills/design-thinking/SKILL.md</pre>
+<p>ponytail and caveman are <em>not</em> vendored here — they install from their own upstreams, and <code>preflight</code> reports either one missing rather than failing.</p>
+<pre>/plugin marketplace add getboon/boon-plugins
+/plugin install design-thinking@boon-plugins</pre>
+<p>Repo-level <code>.claude/settings.json</code> naming the marketplace and the enabled plugin means teammates get it on trusting the folder, with no install commands. Full steps, versioning and verification in <code>INSTALL.md</code>.</p>
+<p><strong>Verify by behaviour, not by listing.</strong> It should report preflight, trace before proposing edits, refuse to write code for a behaviour with no contract and no red test, and run the checks to close rather than declaring done.</p>
+</div>
+</details>
+
+<footer>
+design-thinking · 18 phases · 2 gates · 5 tiers · 43 principles<br>
+node = file · symbol · behavior &nbsp;|&nbsp; edge = calls · imports · invokes · requests · publishes · reads_writes · provisions<br>
+if the code does not match the graph, the implementation is wrong
+</footer>
+</section>
+
+</div>
+</div>
+<script>
+  var b=document.getElementById('tg');
+  b.addEventListener('click',function(){
+    var on=document.body.classList.toggle('shapes-only');
+    b.setAttribute('aria-pressed',on?'true':'false');
+    b.textContent=on?'colour on':'shapes only';
+  });
+</script>
+</body>
+</html>
