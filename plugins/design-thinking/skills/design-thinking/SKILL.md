@@ -46,13 +46,17 @@ happened to arrive; skip the last and "done" is an opinion.
 
 ```
 .design/
-  ENG-1234.log.jsonl                 THE SOURCE — one decision per line, append-only
-  ENG-1234.json                      derived: tier 0-1
-  ENG-1234.refund.trace.json         derived: tiers 2-4 (nodes, symbols, behaviors)
-  ENG-1234.refund.model.json         derived: the domain as understood for that task
-  ENG-1234.refund.graph.md           derived: the rendered view
-  index.md                           derived: recall across every snapshot
+  partial-refunds.log.jsonl          THE SOURCE — one decision per line, append-only
+  partial-refunds.json               derived: tier 0-1
+  partial-refunds.refund.trace.json   derived: tiers 2-4 (nodes, symbols, behaviors)
+  partial-refunds.refund.model.json   derived: the domain as understood for that task
+  partial-refunds.refund.graph.md     derived: the rendered view
+  index.md                          derived: recall across every snapshot
 ```
+
+Choose a descriptive `--ref` such as `partial-refunds`. It becomes a filename
+component, so it must contain no dots, slashes, or glob characters. No external
+issue tracker is required.
 
 **Log the decision, not the state.** A verdict that went `no_change → change`
 because a compiler error moved it is worth more than the verdict, and
@@ -68,7 +72,7 @@ finding rather than a write that silently wins.
 **Decide through the CLI; read the folds.**
 
 ```bash
-design.py init --ref ENG-1234 --title "partial refunds"
+design.py init --ref partial-refunds --title "partial refunds"
 design.py requirement --id R1 --statement "a partial refund below the balance succeeds"
 design.py acceptance  --id R1 --altitude http --cmd "go test ./acceptance -run Refund" \
   --red "expected 200 with status closed, got 422"
@@ -329,6 +333,21 @@ internals. Changing that mapping is a behavior with a test, not a refactor.
 
 ## Non-negotiables
 
+**Code comments explain important reasons only.** Do not add comments that
+narrate what code does, restate names or types, label implementation steps, or
+copy the trace into source files. Prefer clear names, explicit structure, and
+behavioral tests. Add a concise comment only when an important, non-obvious
+reason would otherwise be lost: a constraint, trade-off, or workaround whose
+removal would look reasonable but break the intended behavior. Explain why it
+must exist. Apply the same rule to explanatory docstrings; do not move narration
+there to bypass it. Preserve required licenses, tool directives, and required
+API documentation. Do not remove existing comments unrelated to the change.
+
+Keep task history, traced relationships, and routine decision rationale in
+`.design/`. Record only useful decisions and evidence; avoid duplicating code
+or writing extra prose documents for recall. This comment policy also applies
+when following companion skills.
+
 1. **THE GATE. No production code for a behavior until its contract is
    annotated and its test is red for the intended reason.** Evaluated per
    behavior, not per node, and recorded in a ledger. Everything else in this
@@ -396,8 +415,9 @@ optional skill never silently changes the method.
 at `locate` and greenfield (does the platform already do this? then no node is
 needed), at `triage` (prefer the change set touching fewest nodes), at pass A
 (smallest happy path), and at `retrace` via `ponytail-review` over the diff. Its
-`ponytail:` shortcut comments are recorded as accepted debt with their upgrade
-paths.
+shortcut rationale and upgrade paths are recorded as accepted debt in `.design/`.
+Do not add `ponytail:` comments by default; an inline comment must satisfy the
+important-reason policy above.
 
 **caveman** (`JuliusBrussee/caveman`) — prose compression. Applies to the
 narration around the graph only. Safe because it leaves code blocks and error
@@ -664,8 +684,7 @@ dependency, and keep the current requirement's scope intact.
 - `hooks/hooks.json` — PostToolUse, so any write under `.design/` redraws.
 - `principles.md` — the method in 43 tool-free statements. Precedence over
   everything else here.
-- `INSTALL.md` — local, per-repo, and plugin install; the `boon-plugins` layout;
-  team rollout.
+- `INSTALL.md` — standalone skill and optional Claude plugin installation.
 - `dependencies.md` — ponytail and caveman: handoff phases, what each may not
   override, and how conflicts resolve.
 - `loop.md` — the loop, the two gates, harness selection, the check manifest,
@@ -687,13 +706,12 @@ dependency, and keep the current requirement's scope intact.
 ## Install
 
 ```
-/plugin marketplace add getboon/boon-plugins
-/plugin install design-thinking@boon-plugins
+/plugin marketplace add insomnius/harness
+/plugin install design-thinking@harness
 ```
 
 This repository's skill folder includes its scripts and can be installed alone
-using `npx skills add /path/to/harness --skill design-thinking`. The commands
-above refer to the original upstream marketplace, not this repository.
+using `npx skills add insomnius/harness --skill design-thinking`.
 Skill installation renders graphs through the CLI. The optional PostToolUse
 hook is available only with a full Claude plugin installation.
 See `INSTALL.md` for this copy's installation instructions.

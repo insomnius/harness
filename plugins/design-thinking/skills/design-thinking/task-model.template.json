@@ -1,7 +1,7 @@
 {
   "_": "TEMPORAL, per task. The domain as it was understood WHILE DOING THIS TASK, captured at a commit. Written as `<ref>.<task-slug>.model.json`. It is never edited by a later task and never merged - a later task writes its own snapshot. Recall across tasks is `index.md`, which is DERIVED from every snapshot and regenerated on every write, so it cannot drift. Divergence between snapshots is a finding the index reports, not a conflict to resolve in place.",
 
-  "ticket_ref": "<JIRA-123>",
+  "ticket_ref": "<ref>",
   "task_slug": "<kebab-case>",
   "captured_at_commit": "<git rev-parse HEAD>",
   "graph_version": "4.0",

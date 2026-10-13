@@ -175,11 +175,11 @@ def main():
         root = Path(tmp)
         (root / ".git").mkdir()
 
-        run(root, "init", "--ref", "ENG-1", "--title", "partial refunds")
+        run(root, "init", "--ref", "partial-refunds", "--title", "partial refunds")
         dd = root / ".design"
-        assert (dd / "ENG-1.log.jsonl").exists(), "decision log not created"
-        assert (dd / "ENG-1.json").exists(), "ticket file not derived from the log"
-        t = json.loads((dd / "ENG-1.json").read_text())
+        assert (dd / "partial-refunds.log.jsonl").exists(), "decision log not created"
+        assert (dd / "partial-refunds.json").exists(), "ticket file not derived from the log"
+        t = json.loads((dd / "partial-refunds.json").read_text())
         assert t["status"] == "open"
         assert t["requirements"] == [], "template placeholders leaked into state"
 
@@ -201,8 +201,8 @@ def main():
             "--red", "expected 200 with status closed, got 422")
         run(root, "task", "--id", "T1", "--slug", "refund-handler",
             "--requirement", "R1", "--title", "refund handler")
-        assert (dd / "ENG-1.refund-handler.trace.json").exists()
-        assert (dd / "ENG-1.refund-handler.model.json").exists()
+        assert (dd / "partial-refunds.refund-handler.trace.json").exists()
+        assert (dd / "partial-refunds.refund-handler.model.json").exists()
 
         # a verdict without a purpose is refused - principle 7
         run(root, "node", "--slug", "refund-handler", "--path", "order/service.go",
@@ -230,7 +230,7 @@ def main():
             "--statement", "a refund above the balance is rejected and the order is untouched",
             "--path", "order/service.go", "--symbol", "RecordRefund",
             "--kind", "error", "--status", "specified", "--requirement", "R1")
-        b = json.loads((dd / "ENG-1.refund-handler.trace.json").read_text())["behaviors"][0]
+        b = json.loads((dd / "partial-refunds.refund-handler.trace.json").read_text())["behaviors"][0]
         assert b["test_name"] == b["statement"], "behavior statement and test name must match"
 
         # the gate refuses without observed red evidence
@@ -242,8 +242,8 @@ def main():
         for want in ["order/service.go", "http/handler.go", "★", "B1", "R1"]:
             assert want in out, f"tree missing {want!r}:\n{out}"
         assert "⊘" in out, f"absorbed node not marked:\n{out}"
-        assert (dd / "ENG-1.refund-handler.graph.md").exists(), "per-task graph not written"
-        assert "mermaid" in (dd / "ENG-1.refund-handler.graph.md").read_text()
+        assert (dd / "partial-refunds.refund-handler.graph.md").exists(), "per-task graph not written"
+        assert "mermaid" in (dd / "partial-refunds.refund-handler.graph.md").read_text()
 
         # a task with a trace but no captured vocabulary is flagged
         assert "no model snapshot" not in out, "snapshot exists; should not be flagged"
@@ -265,7 +265,7 @@ def main():
         run(root, "node", "--slug", "refund-handler", "--path", "pkg/money.go",
             "--verdict", "change", "--stop-reason", "CLEAR",
             "--why", "the amount type gains a currency field", "--evidence", "compiler")
-        tr = json.loads((dd / "ENG-1.refund-handler.trace.json").read_text())
+        tr = json.loads((dd / "partial-refunds.refund-handler.trace.json").read_text())
         money = next(n for n in tr["nodes"] if n["path"] == "pkg/money.go")
         assert money["verdict"] == "change"
         assert len(money["decisions"]) >= 2, "earlier decision lost in the fold"
@@ -281,9 +281,9 @@ def main():
         assert "the amount type gains a currency field" in logout
 
         # re-folding the same log must produce the same documents
-        before = (dd / "ENG-1.refund-handler.trace.json").read_text()
+        before = (dd / "partial-refunds.refund-handler.trace.json").read_text()
         run(root, "rebuild")
-        after = json.loads((dd / "ENG-1.refund-handler.trace.json").read_text())
+        after = json.loads((dd / "partial-refunds.refund-handler.trace.json").read_text())
         after.pop("updated_at", None)
         b = json.loads(before)
         b.pop("updated_at", None)
@@ -332,7 +332,7 @@ def main():
             "--role", "read_model", "--purpose", "what finance sees this quarter")
         run(root, "own", "--slug", "refund-handler", "--name", "RefundLedgerView",
             "--role", "read_model", "--purpose", "every refund issued, for finance")
-        m = json.loads((dd / "ENG-1.refund-handler.model.json").read_text())
+        m = json.loads((dd / "partial-refunds.refund-handler.model.json").read_text())
         rm = next(x for x in m["read_models"] if x["name"] == "RefundLedgerView")
         assert rm["answers"] == "every refund issued, for finance", \
             f"role field left stale on revision: {rm.get('answers')!r}"
@@ -350,14 +350,14 @@ def main():
         run(root, "node", "--slug", "refund-handler", "--path", "notify/mailer.go",
             "--purpose", "sends transactional email", "--verdict", "no_change",
             "--stop-reason", "MISPLACED", "--belongs-in", "notify/dispatcher.go")
-        tr = json.loads((dd / "ENG-1.refund-handler.trace.json").read_text())
+        tr = json.loads((dd / "partial-refunds.refund-handler.trace.json").read_text())
         assert any(m["reached_node"] == "notify/mailer.go" and
                    m["belongs_in"] == "notify/dispatcher.go" for m in tr["misplaced"]), \
             "MISPLACED not recorded in the trace"
         run(root, "node", "--slug", "refund-handler", "--path", "notify/mailer.go",
             "--verdict", "no_change", "--stop-reason", "MISPLACED",
             "--belongs-in", "notify/outbox.go", "--why", "dispatcher was the wrong home")
-        tr = json.loads((dd / "ENG-1.refund-handler.trace.json").read_text())
+        tr = json.loads((dd / "partial-refunds.refund-handler.trace.json").read_text())
         m = next(x for x in tr["misplaced"] if x["reached_node"] == "notify/mailer.go")
         assert m["belongs_in"] == "notify/outbox.go", \
             f"reroute kept the stale destination: {m['belongs_in']!r}"
@@ -373,7 +373,7 @@ def main():
             "--role", "repository", "--aggregate", "Ordr")
         run(root, "own", "--slug", "refund-handler", "--name", "OrderRepo",
             "--role", "repository", "--aggregate", "Order", "--why", "typo")
-        m = json.loads((dd / "ENG-1.refund-handler.model.json").read_text())
+        m = json.loads((dd / "partial-refunds.refund-handler.model.json").read_text())
         repo = next(x for x in m["repositories"] if x["name"] == "OrderRepo")
         assert repo["aggregate"] == "Order", \
             f"revision kept the first aggregate: {repo['aggregate']!r}"
@@ -419,7 +419,7 @@ def main():
         # changing the acceptance command invalidates evidence for the old one
         run(root, "acceptance", "--id", "R1", "--cmd", "go test ./acceptance -run Refund2",
             "--red", "expected 200, got 500")
-        t = json.loads((dd / "ENG-1.json").read_text())
+        t = json.loads((dd / "partial-refunds.json").read_text())
         acc = next(x for x in t["requirements"] if x["id"] == "R1")["acceptance"]
         assert acc["red_evidence"]["command"] == "go test ./acceptance -run Refund2", \
             f"red evidence still names the old command: {acc['red_evidence']}"
@@ -430,7 +430,7 @@ def main():
         run(root, "acceptance", "--id", "R7", "--manual-owner", expect_ok=False)
         run(root, "acceptance", "--id", "R7", "--manual-owner", "ops on-call",
             "--manual-evidence", "a photo of a printed invoice attached to the ticket")
-        t = json.loads((dd / "ENG-1.json").read_text())
+        t = json.loads((dd / "partial-refunds.json").read_text())
         r7 = next(x for x in t["requirements"] if x["id"] == "R7")
         assert r7["acceptance"]["manual_closure"]["who"] == "ops on-call"
         assert r7["acceptance"]["automatable"] is False
@@ -440,7 +440,7 @@ def main():
         # failure after one cannot be ignored by close
         run(root, "acceptance", "--id", "R7", "--cmd", "make print-test",
             "--red", "the barcode smears at 200dpi")
-        t = json.loads((dd / "ENG-1.json").read_text())
+        t = json.loads((dd / "partial-refunds.json").read_text())
         a7 = next(x for x in t["requirements"] if x["id"] == "R7")["acceptance"]
         assert "manual_closure" not in a7, \
             "a later observation left the manual closure standing"
@@ -490,14 +490,14 @@ def main():
         # an entity's identity is its id type, not the aggregate it belongs to
         run(root, "own", "--slug", "refund-handler", "--name", "RefundLine",
             "--role", "entity", "--aggregate", "Order", "--purpose", "one line of a refund")
-        m = json.loads((dd / "ENG-1.refund-handler.model.json").read_text())
+        m = json.loads((dd / "partial-refunds.refund-handler.model.json").read_text())
         ent = next(x for x in m["entities"] if x["name"] == "RefundLine")
         assert ent["aggregate"] == "Order"
         assert ent["identity"] is None, \
             f"identity was defaulted from the aggregate: {ent['identity']!r}"
         run(root, "own", "--slug", "refund-handler", "--name", "RefundLine",
             "--role", "entity", "--identity", "RefundLineId")
-        m = json.loads((dd / "ENG-1.refund-handler.model.json").read_text())
+        m = json.loads((dd / "partial-refunds.refund-handler.model.json").read_text())
         ent = next(x for x in m["entities"] if x["name"] == "RefundLine")
         assert ent["identity"] == "RefundLineId" and ent["aggregate"] == "Order"
 
@@ -527,11 +527,11 @@ def main():
 
         # a skipped phase is recorded, not silently absent
         run(root, "phase", "cross", "--skipped", "no seam on the path")
-        t = json.loads((dd / "ENG-1.json").read_text())
+        t = json.loads((dd / "partial-refunds.json").read_text())
         assert any(x["phase"] == "cross" for x in t["skipped_phases"]), \
             "skipped phase not recorded"
         run(root, "phase", "cross", "--skipped", "the seam is internal, not crossed")
-        t = json.loads((dd / "ENG-1.json").read_text())
+        t = json.loads((dd / "partial-refunds.json").read_text())
         cross = [x for x in t["skipped_phases"] if x["phase"] == "cross"]
         assert len(cross) == 1 and cross[0]["why"] == "the seam is internal, not crossed", \
             f"corrected skip reason not applied: {cross}"
@@ -549,13 +549,13 @@ def main():
 
         # re-creating a task must not wipe what it already recorded
         run(root, "task", "--id", "T1", "--slug", "refund-handler", "--requirement", "R1")
-        tr = json.loads((dd / "ENG-1.refund-handler.trace.json").read_text())
+        tr = json.loads((dd / "partial-refunds.refund-handler.trace.json").read_text())
         assert any(n["path"] == "order/service.go" for n in tr["nodes"]), \
             "duplicate task.create erased the trace"
         assert tr["behaviors"], "duplicate task.create erased the behaviors"
 
         # a damaged log line must fail loudly rather than fold around it
-        log = dd / "ENG-1.log.jsonl"
+        log = dd / "partial-refunds.log.jsonl"
         good = log.read_text()
         log.write_text(good + "{not json\n")
         r = run(root, "rebuild", expect_ok=False)
@@ -589,7 +589,7 @@ def main():
 
         # a check that regresses red after green retracts the transition
         run(root, "acceptance", "--id", "R1", "--red", "flaked on the ledger assertion")
-        t = json.loads((dd / "ENG-1.json").read_text())
+        t = json.loads((dd / "partial-refunds.json").read_text())
         acc = next(x for x in t["requirements"] if x["id"] == "R1")["acceptance"]
         assert "went_green_at" not in acc, "a regression kept the green transition"
         run(root, "close", expect_ok=False)
@@ -599,7 +599,7 @@ def main():
         run(root, "node", "--slug", "refund-handler", "--path", "notify/mailer.go",
             "--verdict", "no_change", "--stop-reason", "ABSORBED",
             "--why", "the dispatcher change absorbed it after all")
-        tr = json.loads((dd / "ENG-1.refund-handler.trace.json").read_text())
+        tr = json.loads((dd / "partial-refunds.refund-handler.trace.json").read_text())
         assert not any(m["reached_node"] == "notify/mailer.go" for m in tr["misplaced"]), \
             "a superseded MISPLACED entry survived"
 
@@ -618,8 +618,8 @@ def main():
             "--status", "descoped", "--why", "folded into R1")
 
         run(root, "close")
-        assert json.loads((dd / "ENG-1.json").read_text())["status"] == "closed"
-        assert (dd / "ENG-1.refund-handler.model.json").exists(), "snapshots must stay in place"
+        assert json.loads((dd / "partial-refunds.json").read_text())["status"] == "closed"
+        assert (dd / "partial-refunds.refund-handler.model.json").exists(), "snapshots must stay in place"
 
         # a closed ticket must not accept new decisions
         run(root, "node", "--slug", "refund-handler", "--path", "late.go",

@@ -32,19 +32,19 @@ happened to arrive; skip the last and "done" is an opinion.
 ## Install
 
 ```
-/plugin marketplace add getboon/boon-plugins
-/plugin install design-thinking@boon-plugins
+/plugin marketplace add insomnius/harness
+/plugin install design-thinking@harness
 ```
 
 Restart Claude Code, then start any implementation task normally. The skill
 triggers on feature work, bug fixes, refactors, migrations and CI changes, and
 on resuming or auditing a trace.
 
-Install it as a plugin rather than copying `skills/design-thinking/` on its own:
-the decision CLI (`scripts/design.py`) and the redraw hook (`hooks/hooks.json`)
-live at the plugin root, and every phase decides through the CLI. A bare skill
-directory gives you the prose with none of the state. `INSTALL.md` has the
-local and per-repo routes, and the team rollout via `.claude/settings.json`.
+The skill folder includes the decision CLI (`scripts/design.py`), templates,
+and references. Install it independently with
+`npx skills add insomnius/harness --skill design-thinking`, or use the plugin
+commands above for the optional redraw hook (`hooks/hooks.json`). See
+`INSTALL.md` for local and per-project installation.
 
 Traces land in `.design/`. Committing them makes a PR reviewable at the level of
 *which nodes were considered and why the rest were absorbed*; `echo '.design/'
@@ -79,10 +79,11 @@ else in `.design/` is derived from it and rebuilt on every write:
 | `<ref>.<task>.graph.md` | the rendered Mermaid views |
 | `index.md` | recall across every snapshot — two tasks defining one term differently surface as a divergence, not a silent overwrite |
 
-Decide through the CLI; read the folds.
+Decide through the CLI; read the folds. Use a descriptive, path-safe `--ref`
+such as `partial-refunds`; no external issue tracker is required.
 
 ```bash
-design.py init --ref ENG-1234 --title "partial refunds"
+design.py init --ref partial-refunds --title "partial refunds"
 design.py requirement --id R1 --statement "a partial refund below the balance succeeds"
 design.py acceptance  --id R1 --altitude http --cmd "go test ./acceptance -run Refund" \
   --red "expected 200 with status closed, got 422"
@@ -214,7 +215,7 @@ and `gate` before any code is written for it.
 | `task-model.template.json` | the domain as understood for one task |
 | `trace.template.json` | tier 2–4 state, one per task |
 | `dependencies.md` | ponytail and caveman: handoff phases, what neither may override |
-| `INSTALL.md` | local, per-repo and plugin install; team rollout |
+| `INSTALL.md` | standalone skill and optional Claude plugin installation |
 | `scripts/design.py` | the CLI — one subcommand per decision, validating and re-folding on each |
 | `scripts/fold.py`, `design_state.py`, `render_graph.py` | the fold and the rendered views |
 | `scripts/test_design.py` | the runnable check, including the spec-mirror assertions between `graph.json` and the CLI |

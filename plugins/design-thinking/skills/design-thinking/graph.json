@@ -2,13 +2,14 @@
   "$schema_version": "3.0",
   "name": "design-thinking",
   "description": "Tiered graph traversal for changing existing systems. Requirement -> task -> file -> symbol. Trace before changing, test before implementing, re-trace after changing, revalidate against drift.",
+  "code_comments": "Do not add code comments or explanatory docstrings unless they explain an important, non-obvious reason: a constraint, trade-off, or workaround whose removal would look reasonable but break intended behavior. Never narrate code, label steps, or copy traces into source. Prefer clear names, structure, and behavioral tests. Keep task history and routine rationale in .design/ without duplicating code or adding prose documents for recall. Preserve required licenses, tool directives, required API documentation, and unrelated existing comments. This policy also applies to companion skills.",
   "dependencies": {
     "note": "Two third-party skills this one hands off to. Declared here because this file is what the skill reads; packaging alone cannot guarantee presence. Both are optional in the sense that the method stands without them, and neither may override a gate.",
     "required": [
       {
         "skill": "ponytail",
         "source": "DietrichGebert/ponytail",
-        "role": "Lazy-senior-dev minimality: the shortest solution that actually works. YAGNI, platform and stdlib before dependencies, no unrequested abstraction. Marks each shortcut with a `ponytail:` comment naming its upgrade path.",
+        "role": "Lazy-senior-dev minimality: the shortest solution that actually works. YAGNI, platform and stdlib before dependencies, no unrequested abstraction. Record shortcut rationale and upgrade paths as accepted debt in .design/; code_comments governs inline explanations.",
         "handoff_phases": {
           "language": "The earliest handoff, and the only one that can end the ticket rather than shrink a change set: a context classified `generic` is where ponytail's question - does this need to exist at all? - is answered no most often. Investment follows subdomain (principle 17b), so the honest output here is sometimes 'use a library, close the ticket'.",
           "locate": "Before seeding new nodes, ask ponytail's question: does the platform, stdlib or framework already do this? A capability that exists needs no node. This is prior-art search with teeth.",
@@ -18,7 +19,7 @@
           "retrace": "Run ponytail-review over the diff. What it proposes deleting is checked against the behavior list: code no behavior asked for is deletable, code a behavior asked for is not."
         },
         "reconcile": {
-          "ponytail_comments_are_accepted_debt": "A `ponytail:` shortcut comment names an upgrade path, which is exactly this method's accepted_debt. Record each one in state at `implement:finalize` with its upgrade path, so a shortcut is a tracked decision rather than a comment nobody re-reads.",
+          "ponytail_comments_are_accepted_debt": "Record shortcut rationale and upgrade paths as accepted_debt in state at `implement:finalize`. Existing relevant `ponytail:` comments can supply evidence; do not create them by default. The code_comments policy takes precedence over companion guidance to mark shortcuts inline.",
           "deletion_is_bounded_by_behaviors": "ponytail-review may propose deleting anything no behavior claims. It may not propose deleting an error policy, a boundary parse, a scoped release or a test - those exist because a behavior or a gate check demanded them."
         }
       },
@@ -42,7 +43,7 @@
     ],
     "precedence_over_dependencies": "Both gates outrank both skills. ponytail may not waive an annotated contract, an error policy, a boundary parse, a scoped release or a red test - minimality governs how much code is written, never what must be specified. caveman may not compress a gate verdict, a check failure or an escalation. Where either skill's instruction conflicts with a gate, the gate wins and the conflict is stated out loud rather than resolved silently.",
     "resolution": {
-      "atomic": "The stronger guarantee: vendor both skills into the same plugin so installing it cannot produce a partial set. Not the route boon-plugins takes - both upstreams move quickly, so vendoring means owning the copies. See `separate`.",
+      "atomic": "The stronger guarantee: vendor both skills into the same plugin so installing it cannot produce a partial set. Harness uses `separate`; vendoring means maintaining copies of both upstreams.",
       "separate": "Or install each from its own upstream marketplace and document the trio. Then rely entirely on preflight.",
       "runtime": "Either way, `preflight` checks for them at session start and degrades explicitly rather than failing mid-task."
     }
@@ -1280,7 +1281,7 @@
         {
           "id": "finalize",
           "title": "Finalize",
-          "do": "Wrap the annotated layers - retry, timeout, logging, tracing, metrics, cache - outside the node so its graph is unchanged. Attach the scope so every acquired resource is released on every path including error and cancellation. Then behaviors of kind `effect`, config and migration wiring, docs stating invariants, scaffolding removed, full suite run.",
+          "do": "Wrap the annotated layers - retry, timeout, logging, tracing, metrics, cache - outside the node so its graph is unchanged. Attach the scope so every acquired resource is released on every path including error and cancellation. Then behaviors of kind `effect`, config and migration wiring, invariants captured in tests and state, required API documentation updated, scaffolding removed, full suite run. Apply code_comments to every added comment or explanatory docstring.",
           "exit": "Full suite green. Repo shippable. Removing any layer would not require editing the happy path. Every acquired resource has a structural release. The node's purpose still describes every behavior it now has - if not, record the widening or the split."
         }
       ],

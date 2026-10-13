@@ -29,6 +29,3 @@ Choose one installation route per agent to avoid duplicates. The plugin-root
 scripts symlink preserves legacy CLI and hook paths. Optional ponytail and
 caveman skills are not bundled; the method continues with its fallbacks.
 Choose whether to commit .design/ traces in each target project.
-
-Adapted from getboon/boon-plugins design-thinking 2.1.4; this repository's
-UPSTREAM.md records the import and local packaging changes.

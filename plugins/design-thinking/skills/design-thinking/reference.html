@@ -735,7 +735,7 @@ never the only cue — use <b>shapes only</b> in the bar to drop colour entirely
 <p>A verdict that went <code>no_change → change</code> because a compiler error moved it is worth more than the verdict it replaced, so the log keeps both and the CLI refuses a reversal with no <code>--why</code>. The state says what was decided; the log says what decided it, and that is the part worth reading on the next ticket.</p>
 
 <h3>Decide through the CLI, read the folds</h3>
-<pre>design.py init        --ref ENG-1234 --title "partial refunds"
+<pre>design.py init        --ref partial-refunds --title "partial refunds"
 design.py requirement --id R1 --statement "a partial refund below the balance succeeds"
 design.py acceptance  --id R1 --altitude http --cmd "go test ./acceptance -run Refund" \
                       --red "expected 200 with status closed, got 422"
@@ -803,9 +803,9 @@ design.py log         <span class="g-dim"># the decisions, and the reversals amo
 <section id="files">
 <h2>13 · FILES, INSTALL, TUNING</h2>
 
-<pre>/plugin marketplace add getboon/boon-plugins
-/plugin install design-thinking@boon-plugins</pre>
-<p>Install the plugin, not the skill folder. <code>scripts/</code> and <code>hooks/</code> sit at the plugin root and every phase decides through the CLI, so a copied <code>skills/design-thinking/</code> is the prose with none of the state. <code>INSTALL.md</code> has the local and per-repo routes, which have to copy <code>scripts/</code> beside the skill for its template lookup to resolve.</p>
+<pre>/plugin marketplace add insomnius/harness
+/plugin install design-thinking@harness</pre>
+<p>The skill folder includes <code>scripts/</code>, templates, and references. Install it independently with <code>npx skills add insomnius/harness --skill design-thinking</code>, or use the plugin commands above for the optional rendering hook. Keep the installed skill folder together; <code>INSTALL.md</code> has the local and per-project routes.</p>
 
 <div class="scroll">
 <table class="wide">
@@ -853,18 +853,21 @@ design.py log         <span class="g-dim"># the decisions, and the reversals amo
 <details>
 <summary>install</summary>
 <div class="body">
-<p><strong>Plugin</strong> — shared through <code>getboon/boon-plugins</code>, and the route worth taking: it is the only one that ships the CLI and the hook together with the prose, and the method only compounds if everyone's traces and glossaries land in the same shape.</p>
-<pre>boon-plugins/
+<p><strong>Plugin</strong> — shared through <code>insomnius/harness</code>. The full Claude plugin adds the optional rendering hook to the self-contained skill and its CLI.</p>
+<pre>harness/
 ├── .claude-plugin/marketplace.json
 └── plugins/design-thinking/
     ├── .claude-plugin/plugin.json
     ├── hooks/hooks.json
-    ├── scripts/design.py
-    └── skills/design-thinking/SKILL.md</pre>
+    ├── scripts → skills/design-thinking/scripts
+    └── skills/design-thinking/
+        ├── SKILL.md
+        ├── scripts/design.py
+        └── … templates and references</pre>
 <p>ponytail and caveman are <em>not</em> vendored here — they install from their own upstreams, and <code>preflight</code> reports either one missing rather than failing.</p>
-<pre>/plugin marketplace add getboon/boon-plugins
-/plugin install design-thinking@boon-plugins</pre>
-<p>Repo-level <code>.claude/settings.json</code> naming the marketplace and the enabled plugin means teammates get it on trusting the folder, with no install commands. Full steps, versioning and verification in <code>INSTALL.md</code>.</p>
+<pre>/plugin marketplace add insomnius/harness
+/plugin install design-thinking@harness</pre>
+<p>See <code>INSTALL.md</code> for local and per-project installation. Choose one installation route per agent to avoid duplicate skill entries.</p>
 <p><strong>Verify by behaviour, not by listing.</strong> It should report preflight, trace before proposing edits, refuse to write code for a behaviour with no contract and no red test, and run the checks to close rather than declaring done.</p>
 </div>
 </details>

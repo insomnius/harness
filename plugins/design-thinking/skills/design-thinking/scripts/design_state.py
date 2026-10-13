@@ -98,7 +98,7 @@ def model_paths(dd, ref=None):
 
 
 def task_key(path):
-    """`ENG-1.refund.trace.json` -> ('ENG-1', 'refund'). Handles dots in slugs."""
+    """`partial-refunds.refund.trace.json` -> ('partial-refunds', 'refund'). Handles dots in slugs."""
     name = Path(path).name
     for suf in SNAPSHOT_SUFFIXES:
         if name.endswith(suf):
@@ -178,7 +178,7 @@ def safe_ref(ref):
     if not ref or Path(ref).name != ref or any(c in ref for c in "/\\*?[]." ):
         raise ValueError(
             f"ref {ref!r} must be a single path-safe filename component "
-            "with no dots, slashes or glob characters (e.g. ENG-1234)")
+            "with no dots, slashes or glob characters (e.g. partial-refunds)")
     return ref
 
 

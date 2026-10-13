@@ -10,7 +10,7 @@ The method stands without either; `preflight` reports absence and continues.
 
 | Skill | Source | Does |
 |---|---|---|
-| ponytail | `DietrichGebert/ponytail` | lazy-senior-dev minimality: shortest solution that works, YAGNI, stdlib before dependencies, shortcuts marked with `ponytail:` comments naming their upgrade path |
+| ponytail | `DietrichGebert/ponytail` | lazy-senior-dev minimality: shortest solution that works, YAGNI, stdlib before dependencies, shortcut rationale and upgrade paths recorded as accepted debt in `.design/` |
 | caveman | `JuliusBrussee/caveman` | strips articles, filler and hedging from prose; code blocks and error messages quoted exactly |
 
 ---
@@ -40,10 +40,11 @@ diligence the whole time it is being wasted.
 
 **Two reconciliations**
 
-*`ponytail:` comments are accepted debt.* A shortcut comment naming an upgrade
-path is exactly what this method calls accepted debt. Record each one in state
-at `implement:finalize` with its upgrade path, so it becomes a tracked decision
-rather than a comment nobody re-reads.
+*Shortcuts are accepted debt.* Record their rationale and upgrade paths in
+`.design/` at `implement:finalize`. Existing relevant `ponytail:` comments can
+supply that evidence, but do not create shortcut comments by default. The code
+comment policy in `SKILL.md` takes precedence: add an inline comment only to
+explain an important, non-obvious reason, never just to label a shortcut.
 
 *Deletion is bounded by behaviors.* `ponytail-review` may propose deleting
 anything no behavior claims — that is its value, and unclaimed code is a real
@@ -98,13 +99,11 @@ compression is real; the saving is not where the marketing suggests.
 /plugin install caveman@caveman
 ```
 
-Both install upstream and independently. For Boon, `boon-plugins` intentionally
-takes the separate route: `ponytail` and `caveman` remain in their own upstream
-marketplaces, while `design-thinking` is installed from this marketplace. A
-fully atomic package would vendor all three, but that is not the route this repo
-takes — see `INSTALL.md`. If you vendor them elsewhere, keep the upstream source
-recorded in `graph.json` so updates are traceable, and re-check the pinned copies
-periodically; both projects move.
+Both install independently from their upstream marketplaces. Harness keeps
+`ponytail` and `caveman` optional and separate from `design-thinking`; see
+`INSTALL.md`. A fully atomic package would vendor all three. If you vendor them
+elsewhere, keep the upstream source recorded in `graph.json` so updates are
+traceable, and re-check the pinned copies periodically; both projects move.
 
 ## Verify the integration
 

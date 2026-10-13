@@ -10,7 +10,7 @@
   "interface": {
     "displayName": "Design Thinking",
     "shortDescription": "Use Design Thinking in Codex.",
-    "longDescription": "Trace existing call graphs, name domain boundaries, and prove behavior with tests. Imported from getboon/boon-plugins.",
+    "longDescription": "Trace existing call graphs, name domain boundaries, and prove behavior with tests.",
     "developerName": "Boon",
     "category": "Productivity",
     "capabilities": [],

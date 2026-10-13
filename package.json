@@ -1,0 +1,29 @@
+{
+  "name": "@insomnius/harness",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Install Harness skills for Codex and Claude Code",
+  "type": "module",
+  "bin": {
+    "harness-skills": "bin/harness.mjs"
+  },
+  "files": [
+    "bin/",
+    ".claude-plugin/marketplace.json",
+    "plugins/*/skills/**",
+    "!plugins/**/__pycache__/**",
+    "!plugins/**/*.py[cod]",
+    "!plugins/**/.DS_Store",
+    "plugins/design-thinking/UPSTREAM.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/install.test.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/insomnius/harness.git"
+  }
+}

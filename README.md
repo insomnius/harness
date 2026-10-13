@@ -1,144 +1,306 @@
 # Harness
 
-My reusable coding skills and plugins for Claude Code, Codex, and other agents.
-Each plugin lives in `plugins/<name>/`, with shared skill instructions and
-resources alongside agent-specific packaging.
+Reusable skills that help coding agents understand a change before implementing
+it and identify code that is becoming difficult to maintain. Use them with
+Claude Code, Codex, OpenCode, or another agent that supports `SKILL.md`.
 
-## Install with npx
+A skill is a set of instructions and supporting resources loaded by your agent.
+These skills guide how the agent works in your project; they are not standalone
+linters or applications.
 
-Requires Node.js/npm. Run from the project that should receive the skills:
+## Choose a skill
+
+| Skill | Use it when you want to… | What you get |
+| --- | --- | --- |
+| [design-thinking](#design-thinking) | Implement a feature, fix a bug, or trace the impact of a change before editing code. | A map of affected behavior and dependencies, recorded decisions, and test evidence for the implementation. |
+| [code-smells](#code-smells) | Review maintainability or refactor code whose structure makes changes harder. | Prioritized findings with locations, evidence, consequences, and focused refactoring options. |
+
+Each skill works independently. You can use `code-smells` to identify a cleanup
+target, then `design-thinking` to trace and implement the resulting change.
+
+## Install
+
+### Detect and install automatically
+
+Run this from the project where you want the skills. Requires Node.js 20+,
+npm, and Git:
 
 ```sh
-# List skills without installing.
-npx skills add /absolute/path/to/harness --list
-
-# Install both skills for your chosen agents.
-npx skills add /absolute/path/to/harness --skill design-thinking code-smells --agent codex claude-code
+npx --yes github:insomnius/harness
 ```
 
-`npx` runs the published Skills CLI, which installs SKILL.md folders and their
-contents. This repository needs no npm package. `--skill` selects skills;
-`--agent` selects harnesses. Add `-g` for personal installation across projects.
-Omit selectors for interactive choices. OpenCode uses `--agent opencode`.
-`--copy` creates independent copies instead of links to a shared installed copy.
-See the [Skills CLI documentation](https://skills.sh/docs/cli).
+The installer checks for `codex` and `claude` on PATH, plus Codex's configuration
+directory (`CODEX_HOME` or `~/.codex`). It installs both skills for every detected
+client:
 
-After pushing this repository to a Git host, replace the local path with its
-URL or GitHub `OWNER/REPO`. No remote is configured here yet. Private sources
-need Git authentication. The tested installer version is `npx skills@1.7.0`.
+- **Claude Code:** registers the Harness marketplace and installs its plugins
+  through the `claude` CLI, including design-thinking's rendering hook. This
+  requires access to the GitHub repository.
+- **Codex:** copies the complete bundled skills into the current project's
+  `.agents/skills/` directory.
 
-This installs skills and bundled resources, not plugin hooks. Use the full
-Claude plugin route below for its rendering hook. Choose one route per agent
-to avoid duplicate entries.
+```sh
+# Preview detected clients and installation actions.
+npx --yes github:insomnius/harness --dry-run
 
-## Design thinking
+# Select a client explicitly, including a desktop-only Codex setup.
+npx --yes github:insomnius/harness --agent codex
+npx --yes github:insomnius/harness --agent claude-code
 
-[design-thinking](plugins/design-thinking/skills/design-thinking/SKILL.md)
-combines domain modeling, call-graph tracing, and test-driven implementation.
-Imported from `getboon/boon-plugins` at version `2.1.4`; the exact source commit
-and local additions are recorded in [UPSTREAM.md](plugins/design-thinking/UPSTREAM.md).
+# Install across projects, or select just one skill.
+npx --yes github:insomnius/harness --global
+npx --yes github:insomnius/harness --skill code-smells
 
-Local version `2.1.5` bundles the CLI inside the skill folder so copying the
-complete skill preserves its resources. A plugin-root `scripts` symlink keeps
-existing CLI and hook paths working.
-The runtime uses Python 3 and Git. Optional companion skills
-`ponytail` and `caveman` are not bundled; the upstream workflow reports their
-absence and continues.
+# Replace an older or modified Codex skill copy.
+npx --yes github:insomnius/harness --agent codex --force
+```
 
-## Code smells
+The default scope is the current project. `--global` uses `~/.agents/skills`
+for Codex and Claude's user plugin scope. Repeat `--agent` or `--skill` to
+select multiple values. Identical Codex copies are skipped; different existing
+copies require `--force`. If detection finds no client, the installer explains
+how to select one explicitly. Start a new agent session after installation.
 
-[code-smells](plugins/code-smells/skills/code-smells/SKILL.md) provides
-evidence-based maintainability reviews and behavior-preserving cleanup using
-[Refactoring.Guru's taxonomy](https://refactoring.guru/refactoring/smells).
-It includes [23 local smell guides](plugins/code-smells/skills/code-smells/references/diagnostics.md)
-with definitions, examples, refactoring options, verification, and guidance for
-avoiding false positives. External links provide attribution; the skill needs
-no website access. Reviews report findings; cleanup requests authorize
-focused refactoring. This skill has no scripts, hooks, or external dependencies.
+The GitHub command uses the version pushed to this repository. To run an
+unpublished checkout now, use its local path from the target project:
 
-For Claude Code, add the marketplace as described below, then install and invoke:
+```sh
+npx --yes --package=/absolute/path/to/harness harness-skills --dry-run
+npx --yes --package=/absolute/path/to/harness harness-skills
+```
+
+The agent-specific commands below remain available for manual installation.
+
+### Claude Code
+
+Use the plugin marketplace to install the skills and design-thinking's optional
+rendering hook. Run inside Claude Code:
 
 ```text
-/plugin install code-smells@harness
-/code-smells:code-smells Review the current changes for code smells.
-```
-
-For Codex, copy or symlink `plugins/code-smells/skills/code-smells` into your
-project's `.agents/skills/code-smells`, then invoke `$code-smells`. For example,
-from the target project, with this checkout at the specified absolute path:
-
-```sh
-mkdir -p .agents/skills
-ln -s /absolute/path/to/harness/plugins/code-smells/skills/code-smells .agents/skills/code-smells
-```
-
-Other harnesses that support `SKILL.md` can install the entire `code-smells`
-skill folder in their discovery directory; keep both `references/` and `smells/`.
-Both Claude and Codex plugin manifests are included. Codex currently uses the
-skill-discovery route documented here; no Codex marketplace is configured.
-
-## Claude Code
-
-From your project directory, start a session with the full plugin path:
-
-```sh
-claude --plugin-dir /absolute/path/to/harness/plugins/design-thinking
-```
-
-Invoke `/design-thinking:design-thinking`. For a persistent installation, run
-these commands inside Claude Code:
-
-```text
-/plugin marketplace add /absolute/path/to/harness
+/plugin marketplace add insomnius/harness
 /plugin install design-thinking@harness
+/plugin install code-smells@harness
 ```
 
-The Claude plugin includes a PostToolUse hook to redraw graphs after edits.
-See the [Claude plugin documentation](https://code.claude.com/docs/en/plugins).
+Install either plugin or both. See [plugin usage](#claude-code-plugin-usage)
+below for invocation examples.
 
-## Codex
+### Codex
 
-Link the shared skill into a project's discovery directory, keeping this
-checkout in place:
+Requires Node.js and npm. Run this from the project where you want the skills:
 
 ```sh
-mkdir -p /absolute/path/to/project/.agents/skills
-ln -s /absolute/path/to/harness/plugins/design-thinking/skills/design-thinking \
-  /absolute/path/to/project/.agents/skills/design-thinking
+npx skills add insomnius/harness \
+  --skill design-thinking code-smells --agent codex
 ```
 
-Start a new Codex session and invoke `$design-thinking`. For personal use across
-projects, use `~/.agents/skills` as the destination instead. These commands do
-not replace an existing skill. See the [official skill documentation](https://learn.chatgpt.com/docs/build-skills).
+This installs the complete skill folders for Codex. Add `-g` to make them
+available across projects.
 
-The plugin also includes `.codex-plugin/plugin.json` for Codex packaging.
-The skill-link route does not install the Claude hook; graphs still render
-when the Python CLI records decisions.
+### Other agents and installation options
 
-## Other agents and CLI usage
-
-Point the agent at the shared `SKILL.md` and its adjacent reference files.
-Discovery and hook support vary by agent. Tell it where this checkout lives
-and invoke the CLI by absolute path from the project being worked on:
+To choose skills and agents interactively:
 
 ```sh
-python3 /absolute/path/to/harness/plugins/design-thinking/scripts/design.py --help
-python3 /absolute/path/to/harness/plugins/design-thinking/scripts/design.py init \
-  --ref TASK-1 --title "Describe the change"
+npx skills add insomnius/harness
 ```
 
-The CLI writes `.design/` state in the target project. Examples in the imported
-skill abbreviate this full invocation as `design.py`.
-
-## Validation and maintenance
-
-Run the upstream behavioral checks from this repository:
+Other useful options:
 
 ```sh
-python3 plugins/design-thinking/scripts/test_design.py
+# Preview the available skills without installing.
+npx skills add insomnius/harness --list
+
+# Install only code-smells for OpenCode in the current project.
+npx skills add insomnius/harness --skill code-smells --agent opencode
+
+# Make both skills available to Codex across your projects.
+npx skills add insomnius/harness \
+  --skill design-thinking code-smells --agent codex -g
 ```
 
-For future imports, preserve supporting scripts and references, record source
-provenance, and add agent manifests only where needed. Keep one shared copy of
-each skill. Upstream documentation is retained as imported; this README covers
-usage of the personal repository.
+Installation includes each skill's supporting files. The default scope is the
+current project; `-g` selects your user directory. See the
+[Skills CLI documentation](https://skills.sh/docs/cli) for other supported agents
+and installation options. Installation was tested with `skills@1.7.2`.
+
+## design-thinking
+
+**Understand which behavior needs to change, where it belongs, and how to prove
+the change works.** This is a software implementation workflow, not a visual
+design or brainstorming skill.
+
+Use it for features, bug fixes, refactors, migrations, and CI or infrastructure
+changes—especially when a requirement describes an outcome without identifying
+the code involved. It can also resume or revalidate an existing trace.
+
+The skill directs your agent to:
+
+1. Translate the requirement into the project's domain language and identify
+   which component owns each rule.
+2. Trace relevant callers, dependencies, and boundaries to determine which
+   files and behaviors need to change and which can stay as they are.
+3. Describe success paths, errors, and required dependencies, then record
+   failing checks before implementing the behavior.
+4. Make the change, revisit the trace, and run the checks needed to demonstrate
+   that the requirement is satisfied.
+
+This is an opinionated workflow: it requires recorded test evidence before
+behavior changes and does not treat an unverified implementation as complete.
+Expect more investigation and bookkeeping than a quick edit.
+
+### Example requests
+
+In Codex, invoke the installed skill by name:
+
+```text
+$design-thinking Add partial refunds. Trace the existing payment flow,
+identify the affected rules, and prove the new behavior with tests.
+```
+
+```text
+$design-thinking Fix duplicate webhook processing. Find where idempotency
+belongs and trace the callers before changing the implementation.
+```
+
+In other agents, select `design-thinking` through their skill interface and
+provide the same task description.
+
+### What it produces
+
+The bundled Python CLI records decisions in the target project's `.design/`
+directory. An append-only log is the source for derived requirement records,
+domain models, call traces, rendered graphs, and an index for later recall.
+Those artifacts make it possible to inspect why a component was changed or
+left alone. Decide per project whether to commit the traces.
+
+**Requirements:** Python 3, Git, and the tools needed to test your project.
+Language guides cover Go, Rust, Java, TypeScript, JavaScript, Effect, Ruby,
+Python, Bash, GitHub Actions, and Terraform. Optional companion skills
+`ponytail` and `caveman` are not bundled; the workflow includes fallbacks.
+
+Read the [full skill](plugins/design-thinking/skills/design-thinking/SKILL.md),
+[principles](plugins/design-thinking/skills/design-thinking/principles.md), or
+[installation details](plugins/design-thinking/skills/design-thinking/INSTALL.md).
+
+## code-smells
+
+**Find structural problems that make code harder to understand, change, or
+test—and explain the cost with evidence.**
+
+Use it to review a diff, audit a component, prioritize technical debt, or carry
+out a requested cleanup. A review request produces findings. A refactoring
+request directs the agent to make focused changes and verify that observable
+behavior is preserved.
+
+For each actionable finding, the skill asks for:
+
+- A file location and symbol, plus the smell's name.
+- Evidence from the implementation, callers, or tests.
+- The concrete maintenance consequence and its priority.
+- The smallest useful remedy and the behavior that needs protection.
+
+It also checks whether the structure is intentional. A long function, switch
+statement, data record, or comment is not automatically a problem. The agent
+should explain the actual cost, acknowledge uncertainty, and report no
+actionable findings when that is the supported conclusion.
+
+### Example requests
+
+```text
+$code-smells Review my current diff. Report actionable maintainability
+issues with file locations and evidence. Do not edit files.
+```
+
+```text
+$code-smells Review src/billing for duplicated business rules and coupling.
+Prioritize the findings by the cost of future changes.
+```
+
+```text
+$code-smells Refactor the duplicated discount policy in these checkout
+handlers. Preserve behavior and run the relevant tests.
+```
+
+### The 23 bundled smells
+
+Every smell has a local guide containing its definition, example, evidence to
+collect, refactoring options, false-positive cautions, and verification advice.
+The skill needs no website access.
+
+| Category | Smells |
+| --- | --- |
+| Bloaters | Long Method; Large Class; Primitive Obsession; Long Parameter List; Data Clumps |
+| Object-Orientation Abusers | Switch Statements; Temporary Field; Refused Bequest; Alternative Classes with Different Interfaces |
+| Change Preventers | Divergent Change; Shotgun Surgery; Parallel Inheritance Hierarchies |
+| Dispensables | Comments; Duplicate Code; Lazy Class; Data Class; Dead Code; Speculative Generality |
+| Couplers | Feature Envy; Inappropriate Intimacy; Message Chains; Middle Man |
+| Other | Incomplete Library Class |
+
+Read the [full skill](plugins/code-smells/skills/code-smells/SKILL.md) or browse
+the [local catalog](plugins/code-smells/skills/code-smells/references/diagnostics.md).
+There are no bundled scripts or runtime dependencies; an agent still needs
+access to your code and, for refactoring, your project's test tools.
+
+## Claude Code plugin usage
+
+The marketplace route above installs the full plugins, including design-thinking's
+PostToolUse hook, which redraws graphs after edits. The `npx` route installs
+skills and their resources.
+
+Plugin invocation uses namespaced commands:
+
+```text
+/design-thinking:design-thinking Implement partial refunds with tests.
+/code-smells:code-smells Review the current diff for maintainability issues.
+```
+
+Choose one installation route per agent to avoid duplicate skill entries.
+Without the hook, design-thinking still renders graphs when its CLI records
+decisions. Codex manifests are included, but the documented Codex installation
+routes here install standalone skills, through the bundled installer or
+`npx skills`.
+
+## Develop and verify locally
+
+The installer is a Node.js executable with no runtime dependencies or build
+step. Test its detection, destinations, existing-file handling, and Claude
+commands with:
+
+```sh
+npm test
+node bin/harness.mjs --dry-run
+```
+
+`package.json` packages the executable and complete skill folders for `npx`.
+Check the distributable contents with `npm pack --dry-run`; keep benchmarks,
+Python bytecode, and other generated files out of the package. GitHub execution
+uses this package directly and does not require publishing to the npm registry.
+
+The shared skill folders live under `plugins/<name>/skills/<name>/`. Keep each
+folder's scripts and references together when copying it to another harness.
+To preview skills from a local checkout:
+
+```sh
+npx skills add /absolute/path/to/harness --list
+```
+
+From this repository, run design-thinking's behavioral checks:
+
+```sh
+python3 plugins/design-thinking/skills/design-thinking/scripts/test_design.py
+```
+
+When invoking its CLI manually, use the installed script's absolute path and
+keep your working directory in the project being changed. That determines
+where `.design/` state is written.
+
+## Sources
+
+- **design-thinking** was imported at version `2.1.4` and adapted for standalone
+  skill installation. Upstream attribution, the exact source commit, and local
+  changes are recorded in
+  [UPSTREAM.md](plugins/design-thinking/UPSTREAM.md).
+- **code-smells** uses [Refactoring.Guru's taxonomy](https://refactoring.guru/refactoring/smells),
+  with locally authored explanations, examples, and review guidance. Source
+  links in the guides provide attribution, not a dependency on the website.

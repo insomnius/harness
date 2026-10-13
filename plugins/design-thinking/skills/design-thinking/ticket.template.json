@@ -3,7 +3,7 @@
 
   "graph_version": "4.0",
   "ticket": "<title as the PM wrote it>",
-  "ticket_ref": "<JIRA-123 / issue url>",
+  "ticket_ref": "<ref>",
   "status": "open | closed",
   "created_at": "<ISO8601>",
   "updated_at": "<ISO8601>",
