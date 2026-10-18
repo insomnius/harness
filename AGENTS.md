@@ -27,11 +27,13 @@ Lead user-facing instructions with `npx --yes github:insomnius/harness`, then
 document manual routes per agent. Keep commands synchronized with
 [README.md](README.md), the executable, and the manifests.
 
-The executable detects `codex` and `claude` on PATH and Codex's configuration
-directory, then installs for every detected client. Default to project scope;
-support `--global`, repeated `--agent` and `--skill` selections, and `--dry-run`.
-Copy bundled Codex skills into `.agents/skills`; use Claude's marketplace CLI
-for plugins. Preserve different existing Codex skills unless `--force` is given.
+The executable detects `codex`, `claude`, and `pi` on PATH and Codex's and Pi's
+configuration directories, then installs for every detected client. Default to
+project scope; support `--global`, repeated `--agent` and `--skill` selections,
+and `--dry-run`.
+Copy bundled Codex/Pi skills into shared `.agents/skills` folders (one copy
+when both clients are selected); use Claude's marketplace CLI for plugins.
+Preserve different existing skills unless `--force` is given.
 Resolve source files relative to the package and destinations from the target
 project's working directory. A dry run must not write files or mutate plugins.
 
@@ -53,6 +55,15 @@ PostToolUse hook. Run inside Claude Code:
 Install either plugin or both. For a shared project, use `--scope project` on
 the install commands; each teammate still needs to install the plugin locally.
 See [Claude Code's installation docs](https://code.claude.com/docs/en/discover-plugins).
+
+**Pi: install complete standalone skills into the shared Agent Skills locations.**
+Use `npx --yes github:insomnius/harness --agent pi`; default project scope uses
+`.agents/skills`, and `--global` uses `~/.agents/skills`. Detect `pi` on PATH or
+its agent directory (`PI_CODING_AGENT_DIR` or `~/.pi/agent`). Explicit selection
+works before Pi is installed. Invoke `/skill:design-thinking` or
+`/skill:code-smells`; use `/reload` after installation in an active session.
+Do not install a second copy if Codex already uses the same shared location.
+Claude plugin hooks are not installed for Pi.
 
 **Codex: install complete standalone skills for this repository.** The bundled
 installer copies them directly. The external Skills CLI remains an alternative;
@@ -116,6 +127,7 @@ and the standard library; Git is also used by the CLI.
 - `fold.py`: derives current state from recorded decisions.
 - `render_graph.py`: renders trace views.
 - `audit_gates.py`: audits workflow gates.
+- `workflow.py`: reads canonical phase transitions and gate validity from the spec.
 - `test_design.py`: standalone behavioral checks.
 
 Preserve the append-only decision log as the source of derived `.design/`
@@ -143,7 +155,12 @@ python3 plugins/design-thinking/skills/design-thinking/scripts/test_design.py
 ```
 
 Add focused behavioral checks to the existing runner when changing toolchain
-behavior. For documentation-only changes, check affected paths, links, and
+behavior. Keep `SKILL.md` short and load detailed guides by current phase.
+Graph output, both TDD gates and the state machine are mandatory; DDD modeling
+is conditional on new-feature work. Use the bundled CLI as the only supported
+state writer, not generated scripts or hand-edited JSON. `status` reads phase
+guidance from `graph.json`; `contract`, `note` and `check` record annotations,
+supplemental findings and captured execution evidence. For documentation-only changes, check affected paths, links, and
 examples; do not add tests that merely duplicate prose.
 
 For manifest changes, check JSON syntax and confirm referenced directories and

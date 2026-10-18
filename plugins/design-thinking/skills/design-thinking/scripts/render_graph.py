@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import design_state as st  # noqa: E402
+import workflow as wf  # noqa: E402
 
 VIEW_BUDGET = 28
 
@@ -49,9 +50,9 @@ def _idx(trace):
             order.setdefault(o["path"], o.get("n"))
     misplaced = {m.get("reached_node") for m in trace.get("misplaced", []) if m.get("reached_node")}
     gated = set()
-    for g in trace.get("gate_ledger", []):
-        if g.get("path") and not g.get("checks_failed"):
-            gated.add(g["path"])
+    for path, items in behaviors.items():
+        if path and items and all(not wf.gate_problem(b, trace.get("gate_ledger", [])) for b in items):
+            gated.add(path)
     adj = {}
     for e in trace.get("edges", []):
         f, t = e.get("from"), e.get("to")
@@ -269,6 +270,13 @@ def render_tree(models, tpath, ticket, traces, level=2, full=False):
                                       for b in bs if (b.get("symbol") or "") == name)
                     label = name or "(node-level)"
                     lines.append((f"{pad}   │  {label:<28} {glyphs}", path in changed))
+                    if level >= 4 or path in changed:
+                        for b in bs:
+                            contract = b.get("contract") or {}
+                            if (b.get("symbol") or "") == name and contract:
+                                lines.append((f"{pad}   │  {b['id']} A: {contract['A']} · "
+                                              f"{contract['cardinality']} · E: {contract['E']} · R: {contract['R']}",
+                                              path in changed))
                     ch = sym.get("channels") or {}
                     flow = (ch.get("A") or {}).get("flow") or []
                     if flow and (level >= 4 or path in changed):

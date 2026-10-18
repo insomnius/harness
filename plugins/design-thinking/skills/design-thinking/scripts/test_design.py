@@ -26,6 +26,13 @@ def run(cwd, *args, expect_ok=True):
     return r
 
 
+def annotate(cwd, slug, behavior):
+    run(cwd, "contract", "--slug", slug, "--id", behavior,
+        "--a", "observe the stated behavior", "--e", "assertion failure: propagate",
+        "--r", "test fixture", "--boundary", "test inputs", "--layers", "none",
+        "--scope", "temporary test resources")
+
+
 def check_spec_mirrors_code():
     """graph.json and the CLI must not drift apart.
 
@@ -66,6 +73,7 @@ def check_spec_mirrors_code():
         "role_routing values must be roles, plus exactly one fallback; found "
         f"{len(non_roles)} non-role values: {sorted(non_roles)}")
 
+    assert set(g["tooling"]["guides"]) == {p["id"] for p in g["phases"]}, "phase guide mapping drifted"
     documented = set(g["tooling"]["commands"])
     implemented = set(re.findall(r'add\("([a-z_]+)"', open(HERE / "design.py").read()))
     assert documented == implemented, (
@@ -166,7 +174,144 @@ def check_cycle_vs_shared():
     print("cycle vs shared: ↺ reachable")
 
 
+def check_workflow_guidance():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / ".git").mkdir()
+        status = run(root, "status").stdout
+        assert "init --ref" in status
+        assert not (root / ".design").exists()
+        run(root, "init", "--ref", "workflow")
+        log = root / ".design/workflow.log.jsonl"
+        before = log.read_bytes()
+        status = run(root, "status").stdout
+        assert "preflight" in status and "requirements" in status and "Guide:" in status
+        assert log.read_bytes() == before, "status appended a decision"
+        for args in [("phase", "typo"), ("phase", "implement"),
+                     ("phase", "gate", "--skipped", "too small")]:
+            run(root, *args, expect_ok=False)
+            assert log.read_bytes() == before, "refused phase changed the log"
+        run(root, "note", "--phase", "preflight", "--json", '{"baseline_failures": []}')
+        note = json.loads((root / ".design/workflow.json").read_text())["phase_notes"][-1]
+        assert note["data"] == {"baseline_failures": []}
+        before_note = log.read_bytes()
+        run(root, "note", "--phase", "preflight", "--json", '{"current_phase": "implement"}', expect_ok=False)
+        run(root, "note", "--phase", "preflight", "--json", '[]', expect_ok=False)
+        run(root, "note", "--phase", "preflight", "--json", '{broken', expect_ok=False)
+        assert log.read_bytes() == before_note
+        guidance = run(root, "status", "--phase", "language").stdout
+        assert "DDD modeling: not applicable" in guidance
+        run(root, "phase", "requirements")
+        run(root, "phase", "language", "--skipped", "bug fix: reuse existing ownership")
+        run(root, "phase", "acceptance")
+        run(root, "phase", "keyword", expect_ok=False)
+        run(root, "requirement", "--id", "R1", "--statement", "a marker is created")
+        red = f'{sys.executable} -c "from pathlib import Path; assert Path(\'marker\').exists(), \'marker missing\'"'
+        run(root, "check", "--kind", "acceptance", "--id", "R1", "--expect", "red",
+            "--cmd", red, "--reason", "assertion names the missing marker")
+        ticket = json.loads((root / ".design/workflow.json").read_text())
+        acc = ticket["requirements"][0]["acceptance"]
+        assert "marker missing" in acc["red_evidence"]["failure"]
+        assert acc["red_evidence"]["execution"]["exit_status"] == 1
+        run(root, "phase", "keyword")
+        run(root, "task", "--id", "T1", "--slug", "marker", "--requirement", "R1")
+        run(root, "behavior", "--slug", "marker", "--id", "B1",
+            "--statement", "a marker is created", "--path", "marker.py", "--requirement", "R1")
+        run(root, "gate", "--slug", "marker", "--id", "B1", "--red", "marker missing",
+            expect_ok=False)
+        run(root, "contract", "--slug", "marker", "--id", "B1",
+            "--a", "create marker", "--e", "write error: propagate OSError", "--r", "filesystem",
+            "--boundary", "fixed test path", "--layers", "none", "--scope", "Path.write_text closes file")
+        for phase in ("locate", "trace"):
+            run(root, "phase", phase, "--slug", "marker")
+        run(root, "phase", "cross", "--slug", "marker", "--skipped", "no seam")
+        for phase in ("triage", "order", "channels", "test", "gate"):
+            run(root, "phase", phase, "--slug", "marker")
+        status = run(root, "status", "--slug", "marker").stdout
+        assert "B1" in status and "Blocked:" in status and "gate.md" in status
+        run(root, "phase", "implement", "--slug", "marker", expect_ok=False)
+        run(root, "check", "--kind", "behavior", "--slug", "marker", "--id", "B1",
+            "--expect", "red", "--cmd", red, "--reason", "assertion names the missing marker")
+        run(root, "behavior", "--slug", "marker", "--id", "B2", "--statement", "a second behavior",
+            "--path", "marker.py", "--requirement", "R1")
+        run(root, "phase", "implement", "--slug", "marker", expect_ok=False)
+        run(root, "phase", "implement", "--slug", "marker", "--behavior", "B2", expect_ok=False)
+        run(root, "phase", "implement", "--slug", "marker", "--behavior", "B1")
+        run(root, "phase", "revalidate", "--slug", "marker")
+        run(root, "phase", "implement", "--slug", "marker", "--behavior", "B1")
+        (root / "marker").touch()
+        run(root, "check", "--kind", "behavior", "--slug", "marker", "--id", "B1", "--expect", "green")
+        run(root, "check", "--kind", "acceptance", "--id", "R1", "--expect", "green")
+        trace = json.loads((root / ".design/workflow.marker.trace.json").read_text())
+        assert trace["behaviors"][0]["status"] == "green"
+        assert trace["behaviors"][0]["green_evidence"]["exit_status"] == 0
+        assert trace["behaviors"][0]["contract"]["A"] == "create marker"
+        # Failed green verification must retract earlier green, not leave a completed graph.
+        (root / "marker").unlink()
+        run(root, "check", "--kind", "acceptance", "--id", "R1", "--expect", "green", expect_ok=False)
+        run(root, "check", "--kind", "behavior", "--slug", "marker", "--id", "B1",
+            "--expect", "green", expect_ok=False)
+        ticket = json.loads((root / ".design/workflow.json").read_text())
+        trace = json.loads((root / ".design/workflow.marker.trace.json").read_text())
+        assert "went_green_at" not in ticket["requirements"][0]["acceptance"]
+        assert trace["behaviors"][0]["status"] == "red"
+        (root / "marker").touch()
+        run(root, "check", "--kind", "acceptance", "--id", "R1", "--expect", "green")
+        run(root, "check", "--kind", "behavior", "--slug", "marker", "--id", "B1", "--expect", "green")
+        run(root, "behavior", "--slug", "marker", "--id", "B1", "--statement", "a marker is created",
+            "--path", "moved.py", "--status", "green", expect_ok=False)
+        run(root, "behavior", "--slug", "marker", "--id", "B1", "--statement", "a marker is created atomically")
+        trace = json.loads((root / ".design/workflow.marker.trace.json").read_text())
+        assert trace["behaviors"][0]["status"] == "specified"
+        assert "green_evidence" not in trace["behaviors"][0]
+        run(root, "behavior", "--slug", "marker", "--id", "B1", "--statement", "a marker is created")
+        # A revised contract invalidates the old gate, even if the statement is unchanged.
+        run(root, "contract", "--slug", "marker", "--id", "B1", "--a", "create marker atomically",
+            "--e", "write error: propagate OSError", "--r", "filesystem", "--boundary", "fixed path",
+            "--layers", "none", "--scope", "temporary file cleanup")
+        run(root, "behavior", "--slug", "marker", "--id", "B1", "--statement", "a marker is created",
+            "--status", "green", expect_ok=False)
+        sys.path.insert(0, str(HERE))
+        from render_graph import _idx
+        trace = json.loads((root / ".design/workflow.marker.trace.json").read_text())
+        assert not _idx(trace)["gated"], "graph still labels an invalidated contract as gated"
+        run(root, "behavior", "--slug", "marker", "--id", "UNKNOWN", "--statement", "unknown",
+            "--status", "green", expect_ok=False)
+        # A successful command must never be accepted as red evidence.
+        before = log.read_bytes()
+        run(root, "check", "--kind", "acceptance", "--id", "R1", "--expect", "red",
+            "--cmd", red, "--reason", "must actually fail", expect_ok=False)
+        assert log.read_bytes() == before
+        # Identity and target validation happen before executing arbitrary commands.
+        dangerous = f'{sys.executable} -c "from pathlib import Path; Path(\'should-not-run\').touch()"'
+        run(root, "check", "--kind", "acceptance", "--id", "R404", "--expect", "red",
+            "--cmd", dangerous, "--reason", "unknown target", expect_ok=False)
+        run(root, "check", "--kind", "acceptance", "--id", "R1", "--expect", "green",
+            "--cmd", dangerous, expect_ok=False)
+        assert not (root / "should-not-run").exists()
+        run(root, "check", "--kind", "baseline", "--cmd", dangerous)
+        assert (root / "should-not-run").exists()
+        assert json.loads((root / ".design/workflow.json").read_text())["check_runs"][-1]["kind"] == "baseline"
+        run(root, "check", "--kind", "baseline", "--cmd", f'{sys.executable} -c "import time; time.sleep(2)"',
+            "--timeout", "0.01", expect_ok=False)
+        for timeout in ("nan", "inf", "0", "-1"):
+            run(root, "check", "--kind", "baseline", "--cmd", dangerous,
+                "--timeout", timeout, expect_ok=False)
+        run(root, "check", "--kind", "acceptance", "--id", "R1", "--expect", "red",
+            "--cmd", f'{sys.executable} -c "raise SystemExit(1)"',
+            "--reason", "no diagnostics must not count as intended red", expect_ok=False)
+        acceptance = json.loads((root / ".design/workflow.json").read_text())["requirements"][0]["acceptance"]
+        assert "went_green_at" not in acceptance, "diagnostic-free failure kept stale green"
+        assert "marker missing" in acceptance["red_evidence"]["failure"], "invalid red replaced intended evidence"
+        run(root, "init", "--ref", "new-feature", "--kind", "feature")
+        guidance = run(root, "--ref", "new-feature", "status", "--phase", "language").stdout
+        assert "DDD modeling: not applicable" not in guidance
+        assert "aggregate" in guidance
+    print("workflow: guidance, transitions, contracts, captured checks and refusal paths")
+
+
 def main():
+    check_workflow_guidance()
     check_spec_mirrors_code()
     check_connecting()
     check_cycle_vs_shared()
@@ -233,6 +378,7 @@ def main():
         b = json.loads((dd / "partial-refunds.refund-handler.trace.json").read_text())["behaviors"][0]
         assert b["test_name"] == b["statement"], "behavior statement and test name must match"
 
+        annotate(root, "refund-handler", "B1")
         # the gate refuses without observed red evidence
         run(root, "gate", "--slug", "refund-handler", "--id", "B1", expect_ok=False)
         run(root, "gate", "--slug", "refund-handler", "--id", "B1",
@@ -449,6 +595,7 @@ def main():
         run(root, "behavior", "--slug", "invoice-print", "--id", "B20",
             "--statement", "the barcode scans at 200dpi", "--status", "specified",
             "--requirement", "R7", "--path", "print/invoice.go", "--symbol", "Render")
+        annotate(root, "invoice-print", "B20")
         run(root, "gate", "--slug", "invoice-print", "--id", "B20",
             "--red", "barcode unreadable at 200dpi", "--cmd", "make print-test")
         run(root, "behavior", "--slug", "invoice-print", "--id", "B20", "--status", "green",
@@ -465,6 +612,7 @@ def main():
         # a gate whose checks FAILED is not a passed gate
         run(root, "behavior", "--slug", "ledger-sync", "--id", "B12", "--status", "specified",
             "--statement", "a reversal is written when the card refund fails")
+        annotate(root, "ledger-sync", "B12")
         run(root, "gate", "--slug", "ledger-sync", "--id", "B12",
             "--red", "no reversal written", "--failed", "G3,G7")
         run(root, "behavior", "--slug", "ledger-sync", "--id", "B12", "--status", "green",
@@ -582,6 +730,7 @@ def main():
         run(root, "behavior", "--slug", "ledger-sync", "--id", "B9", "--status", "green",
             "--statement", "a ledger entry is written for every recorded refund",
             expect_ok=False)
+        annotate(root, "ledger-sync", "B9")
         run(root, "gate", "--slug", "ledger-sync", "--id", "B9",
             "--red", "expected a ledger entry, found none", "--cmd", "go test ./ledger")
         run(root, "behavior", "--slug", "ledger-sync", "--id", "B9", "--status", "green",
@@ -617,6 +766,12 @@ def main():
         run(root, "requirement", "--id", "R5", "--statement", "an empty requirement",
             "--status", "descoped", "--why", "folded into R1")
 
+        # A passed red gate is permission to implement, not evidence of green.
+        r = run(root, "close", expect_ok=False)
+        assert "never gated or green" in r.stderr
+        run(root, "close", "--force", expect_ok=False)
+        run(root, "behavior", "--slug", "refund-handler", "--id", "B1", "--status", "green",
+            "--statement", "a refund above the balance is rejected and the order is untouched")
         run(root, "close")
         assert json.loads((dd / "partial-refunds.json").read_text())["status"] == "closed"
         assert (dd / "partial-refunds.refund-handler.model.json").exists(), "snapshots must stay in place"

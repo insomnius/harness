@@ -13,25 +13,25 @@ import { parseArgs } from 'node:util';
 const packageRoot = fileURLToPath(new URL('../', import.meta.url));
 const catalog = JSON.parse(readFileSync(join(packageRoot, '.claude-plugin/marketplace.json')));
 const skillNames = catalog.plugins.map(plugin => plugin.name);
-const agentNames = ['codex', 'claude-code'];
+const agentNames = ['codex', 'claude-code', 'pi'];
 const marketplaceSource = 'insomnius/harness';
 
 const help = `Usage: harness-skills [options]
 
-Install both Harness skills for detected Codex and Claude Code installations.
-Codex receives complete skill folders; Claude Code uses its plugin marketplace.
+Install both Harness skills for detected Codex, Claude Code, and Pi installations.
+Codex and Pi share complete skill folders; Claude Code uses its plugin marketplace.
 The default scope is the current project.
 
-  --agent NAME   Target codex or claude-code; repeat to select both
+  --agent NAME   Target codex, claude-code, or pi; repeat to select multiple
   --skill NAME   Select ${skillNames.join(' or ')}; repeat for both
   -g, --global   Install for your user across projects
   --dry-run      Show targets and commands without changing anything
-  --force        Replace different existing Codex skill folders
+  --force        Replace different existing Codex/Pi skill folders
   -h, --help     Show this help
   --version      Show installer version
 
-Detection checks for codex/claude on PATH and Codex's configuration directory.
-Use --agent codex for a desktop-only installation not detected automatically.
+Detection checks for codex/claude/pi on PATH and Codex/Pi configuration directories.
+Use --agent codex or --agent pi for installations not detected automatically.
 Claude Code requires the claude CLI on PATH and access to the GitHub marketplace.
 `;
 
@@ -141,17 +141,20 @@ export function install({
   const available = {
     codex: commandExists('codex', environment) || existsSync(environment.CODEX_HOME || join(userDirectory, '.codex')),
     'claude-code': commandExists('claude', environment),
+    pi: commandExists('pi', environment) || existsSync(environment.PI_CODING_AGENT_DIR || join(userDirectory, '.pi', 'agent')),
   };
   const selectedAgents = [...new Set(values.agent ?? agentNames.filter(name => available[name]))];
   if (!selectedAgents.length) {
-    throw new Error('No supported agents detected. Install Codex or Claude Code, or use --agent codex for a desktop installation.');
+    throw new Error('No supported agents detected. Install Codex, Claude Code, or Pi, or select --agent codex or --agent pi explicitly.');
   }
   if (selectedAgents.includes('claude-code') && !available['claude-code']) {
     throw new Error('Claude Code installation requires the claude CLI on PATH. Install it, or select --agent codex.');
   }
 
   const destinationRoot = join(values.global ? userDirectory : resolve(cwd), '.agents', 'skills');
-  const copies = selectedAgents.includes('codex') ? selectedSkills.map(name => {
+  const copyAgents = selectedAgents.filter(name => name === 'codex' || name === 'pi');
+  const copyLabel = copyAgents.map(name => name === 'pi' ? 'Pi' : 'Codex').join('/');
+  const copies = copyAgents.length ? selectedSkills.map(name => {
     const entry = catalog.plugins.find(plugin => plugin.name === name);
     const source = join(packageRoot, entry.source, 'skills', name);
     if (!existsSync(join(source, 'SKILL.md'))) throw new Error(`Missing bundled skill: ${name}.`);
@@ -168,18 +171,18 @@ export function install({
   if (values['dry-run']) output('Dry run: no files or plugin settings will change.');
   let failed = false;
   for (const copy of copies) {
-    if (copy.unchanged) { output(`Codex: ${copy.name} is already up to date.`); continue; }
+    if (copy.unchanged) { output(`${copyLabel}: ${copy.name} is already up to date.`); continue; }
     if (values['dry-run']) {
       const replacement = present(copy.destination)
         ? (values.force ? ' (replace existing)' : ' (exists; requires --force)') : '';
-      output(`Codex: copy ${copy.name} to ${copy.destination}${replacement}`);
+      output(`${copyLabel}: copy ${copy.name} to ${copy.destination}${replacement}`);
       continue;
     }
     try {
       copySkill(copy.source, copy.destination);
-      output(`Codex: installed ${copy.name} at ${copy.destination}`);
+      output(`${copyLabel}: installed ${copy.name} at ${copy.destination}`);
     } catch (error) {
-      errorOutput(`Codex: ${copy.name}: ${error.message}`);
+      errorOutput(`${copyLabel}: ${copy.name}: ${error.message}`);
       failed = true;
     }
   }

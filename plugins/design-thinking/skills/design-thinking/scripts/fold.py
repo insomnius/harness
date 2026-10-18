@@ -83,6 +83,7 @@ def fold(events):
             ticket.update(_="" if False else DERIVED,
                           ticket=ev.get("title") or ev.get("ticket_ref"),
                           ticket_ref=ev.get("ticket_ref"), status="open",
+                          change_kind=ev.get("change_kind", "change"),
                           created_at=ev.get("at"),
                           opened_at_commit=ev.get("commit"),
                           current_phase="preflight")
@@ -121,20 +122,26 @@ def fold(events):
                     # rather than silently carried forward.
                     acc.pop("red_evidence", None)
                     acc.pop("went_green_at", None)
+                    acc.pop("green_evidence", None)
                 acc[f] = ev[f]
             if ev.get("red"):
                 acc["red_evidence"] = {"command": ev.get("cmd") or acc.get("cmd", ""),
                                        "failure": ev["red"], "at": ev.get("at")}
+                if ev.get("execution"):
+                    acc["red_evidence"]["execution"] = ev["execution"]
                 # A check that regressed is red now. Keeping the old transition
                 # would let `close` close a currently failing requirement -
                 # closure is observed, and this observation is a failure.
                 acc.pop("went_green_at", None)
+                acc.pop("green_evidence", None)
             if ev.get("green"):
                 # If the command changed in this same event the red evidence was
                 # just retracted, so there is nothing this green is the other
                 # half of. Defensive: the CLI refuses it, a hand-edited log may not.
                 if (acc.get("red_evidence") or {}).get("failure"):
                     acc["went_green_at"] = ev.get("at")
+                    if ev.get("execution"):
+                        acc["green_evidence"] = ev["execution"]
             if ev.get("cmd"):
                 ticket.setdefault("checks", {}).setdefault("acceptance", {})["cmd"] = ev["cmd"]
 
@@ -149,6 +156,7 @@ def fold(events):
             # evidence: the later decision defines how this requirement closes.
             acc.pop("red_evidence", None)
             acc.pop("went_green_at", None)
+            acc.pop("green_evidence", None)
 
         elif k == "task.create":
             if slug in traces:
@@ -185,6 +193,15 @@ def fold(events):
             models[slug] = m
 
         elif k == "phase.set":
+            target = traces[slug] if slug and slug in traces else ticket
+            if ev.get("phase") == "revalidate" and target.get("current_phase") != "revalidate":
+                target["resume_phase"] = target.get("current_phase")
+            elif target.get("current_phase") == "revalidate":
+                target.pop("resume_phase", None)
+            ticket["skipped_phases"] = [s for s in ticket.get("skipped_phases", [])
+                                        if not (s.get("phase") == ev.get("phase") and s.get("task") == slug)]
+            if ev.get("phase") == "implement" and ev.get("behavior"):
+                target["current_behavior"] = ev["behavior"]
             if slug and slug in traces:
                 traces[slug]["current_phase"] = ev.get("phase")
                 done = traces[slug].setdefault("phases_done", [])
@@ -192,6 +209,11 @@ def fold(events):
                     done.append(ev.get("phase"))
             else:
                 ticket["current_phase"] = ev.get("phase")
+
+        elif k == "phase.note":
+            target = traces[slug] if slug and slug in traces else ticket
+            target.setdefault("phase_notes", []).append({"phase": ev.get("phase"),
+                "data": ev.get("data"), "at": ev.get("at"), "why": ev.get("why")})
 
         elif k == "phase.skip":
             sk = ticket.setdefault("skipped_phases", [])
@@ -256,6 +278,11 @@ def fold(events):
 
         elif k == "behavior.set" and slug in traces:
             b = _rec(traces[slug]["behaviors"], "id", ev.get("id"))
+            if b.get("statement") and any(ev.get(field) is not None and b.get(field) != ev[field]
+                                           for field in ("statement", "path", "symbol")):
+                b["status"] = "specified"
+                b["gate_passed"] = False
+                b.pop("green_evidence", None)
             _decide(b, ev, ("statement", "path", "symbol", "verdict", "status", "owned_by"))
             if ev.get("statement"):
                 b["test_name"] = ev["statement"]   # principle 8b: one sentence
@@ -266,15 +293,53 @@ def fold(events):
                 if ev["requirement"] not in b["requirement_ids"]:
                     b["requirement_ids"].append(ev["requirement"])
 
+        elif k == "contract.set" and slug in traces:
+            b = next((x for x in traces[slug]["behaviors"] if x.get("id") == ev.get("id")), None)
+            if b is not None:
+                if b.get("contract") != ev.get("contract"):
+                    b["status"] = "specified"
+                    b["gate_passed"] = False
+                    b.pop("green_evidence", None)
+                _decide(b, ev, ("contract",))
+
+        elif k == "check.run":
+            ticket.setdefault("check_runs", []).append(ev["execution"])
+
+        elif k == "check.failed":
+            if ev.get("check_kind") == "acceptance":
+                r = _rec(ticket["requirements"], "id", ev.get("id"))
+                acc = r.setdefault("acceptance", {})
+                acc.pop("went_green_at", None)
+                acc.pop("green_evidence", None)
+                acc["last_failure"] = ev.get("execution")
+                if r.get("status") == "done":
+                    r["status"] = "verifying"
+            elif slug in traces:
+                b = next((x for x in traces[slug]["behaviors"] if x.get("id") == ev.get("id")), None)
+                if b is not None:
+                    b["status"] = "red"
+                    b.pop("green_evidence", None)
+                    b["last_failure"] = ev.get("execution")
+
+        elif k == "behavior.green" and slug in traces:
+            b = next((x for x in traces[slug]["behaviors"] if x.get("id") == ev.get("id")), None)
+            if b is not None:
+                b["status"] = "green"
+                b["green_evidence"] = ev.get("execution")
+
         elif k == "gate.record" and slug in traces:
             g = _rec(traces[slug]["gate_ledger"], "behavior_id", ev.get("id"))
             b = next((x for x in traces[slug]["behaviors"] if x.get("id") == ev.get("id")), None)
             g.update(path=(b or {}).get("path"), symbol=(b or {}).get("symbol"),
                      statement=ev.get("statement") or (b or {}).get("statement"),
+                     contract=ev.get("contract"),
                      red_evidence={"command": ev.get("cmd", ""), "failure": ev.get("red", "")},
                      checks_passed=ev.get("passed") or [],
                      checks_failed=ev.get("failed") or [], at=ev.get("at"))
+            if ev.get("execution"):
+                g["red_evidence"]["execution"] = ev["execution"]
             if b is not None:
+                b.pop("green_evidence", None)
                 b["gate_passed"] = not ev.get("failed")
                 b["status"] = "red" if ev.get("failed") else "gated"
 

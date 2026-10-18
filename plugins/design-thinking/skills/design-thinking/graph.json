@@ -66,7 +66,7 @@
       "close"
     ],
     "conditional": {
-      "language": "Runs fully when any term in the requirement is missing from the glossary, or a context boundary is involved. When every term already resolves, it degenerates to a glossary lookup - not a skip, a cheap pass.",
+      "language": "Full DDD modeling applies only to new-feature work (init --kind feature). For fixes, refactors, migrations, infrastructure and documentation, reuse existing terminology and ownership; do a lookup or record a skip with its reason. A seam still requires contract and compatibility analysis, not a fresh domain model.",
       "cross": "Only when a seam appears on the change path. No seam, no phase.",
       "channels": "Full annotation when the symbol's contract changes. For a body-only change, annotate only the delta: the break points added or removed, and any new dependency. Nothing propagates from a body change, so re-annotating an unchanged contract is theatre.",
       "flow_annotation": "Only when more than one node changes, or the requirement spans a process boundary. A single-node change is its own flow.",
@@ -88,10 +88,10 @@
       "phases",
       "mechanics"
     ],
-    "rule": "The axioms are the method. Phases are how the axioms get applied in order. Mechanics - the commands, tools and greps in the reference files - are illustrations for the stacks that happened to be written down, and they are the first thing to adapt or discard.",
+    "rule": "Apply phase_applicability first: DDD modeling axioms and domain_schema routing apply to new-feature development only; other work reuses existing terminology and ownership. Graph, A/E/R and both gates remain universal. Phases apply the axioms in order. Mechanics are illustrations and can be adapted to the stack.",
     "when_a_mechanic_conflicts_with_a_principle": "The principle wins. Find the mechanic that serves it in this stack, and if none exists, say so and reason from the principle directly rather than forcing the recipe.",
     "when_a_stack_is_not_covered": "Nothing changes. Ask the principle's question - who calls this, where does it break, what does it need, is it substitutable - and find that stack's way of answering. A language with no compiler still has an R; it is just written down instead of proven.",
-    "the_gates_are_not_tunable": "Both gates - a red acceptance check before work on a requirement, a red unit test and an annotated contract before code for a behavior - are constraints, not guidance. Everything else can be tuned to taste."
+    "the_gates_are_not_tunable": "Both gates - a red acceptance check before work on a requirement, a red unit test and an annotated contract before code for a behavior - are constraints, not guidance. Graph output and the state-machine protocol are mandatory too. Architectural mechanics can be adapted."
   },
   "reporting": {
     "rule": "Report as a graph, always, and as a MULTI-LEVEL tree - not a flat list. Sibling bullets under a requirement hide who calls whom, which is the only thing the X -> Y -> Z notation exists to show. Nesting also carries the edit order, since callees-before-callers is only legible when the nesting is visible. Prose explains the tree; it does not replace it.",
@@ -268,7 +268,7 @@
     "In-process, the caller set is provable. Across a published seam it is not. For provider-side changes, prefer a backward-compatible contract over a complete upstream trace, because completeness is not available.",
     "Every node has exactly one purpose. A change that reaches a node whose purpose does not cover it is misplaced, not absorbed.",
     "Behavior is the unit of verification: requirements are satisfied by behaviors, behaviors are proven by tests. Files and symbols are only addresses.",
-    "No production code is written for a behavior until its contract is annotated and its test is red for the intended reason. This is the method's one hard gate; every other rule is guidance.",
+    "No production code is written for a behavior until its contract is annotated and its test is red for the intended reason. Both TDD gates, graph reporting and the state-machine protocol are mandatory.",
     "Implement in passes: happy path, then re-check scenarios, then errors, then finalize. Never all at once. A pass is a behavior kind, not a stage.",
     "The graph mutates as you edit it. Re-trace after every changed node.",
     "One requirement is closed and verified before the next is started.",
@@ -452,6 +452,7 @@
     "hash": "sha256 of the normalized signature + sorted errors + sorted deps. Semantic, so formatting churn does not trip drift."
   },
   "domain_schema": {
+    "applicability": "DDD modeling is required only for new features. Other changes reuse existing vocabulary and ownership without introducing a new domain model or restructuring the architecture to satisfy this taxonomy.",
     "glossary_entry": {
       "term": "the one canonical name, in the domain's own words",
       "definition": "one sentence a domain expert would accept",
@@ -805,7 +806,12 @@
       "id": "language",
       "tier": 0,
       "title": "Translate into the domain",
-      "purpose": "Turn product prose into the ubiquitous language, classify each context's subdomain, and give every needed behavior an owner - by role, not by file.",
+      "purpose": "For new features, turn product prose into the ubiquitous language, classify each context's subdomain, and assign each needed behavior an owner. Other changes reuse existing terminology and ownership.",
+      "non_feature": {
+        "purpose": "Reuse existing terminology and ownership without performing a DDD modeling exercise.",
+        "ask": ["Which existing code and test names match the requirement?", "Where does the existing behavior belong?"],
+        "exit_criteria": ["Existing terms and ownership are understood, or an ambiguity is escalated. Record a skip if no lookup is needed."]
+      },
       "ask": [
         "What nouns and verbs does the requirement use, and what does the domain actually call each one?",
         "What does the code call it? If those differ, the language is not ubiquitous - record the drift and search on both.",
@@ -843,7 +849,7 @@
         "No behavior is assigned to an application service that enforces a rule - that is a displaced invariant with a known destination."
       ],
       "loop_back_if": "The domain model cannot express the requirement without contradiction - two conflicting invariants, or a term the domain expert rejects. Return to `requirements`; this is an ambiguity, not a modelling problem.",
-      "note": "This phase is done on the ticket and on the existing code together. The domain model is mined from what exists, not invented - `domain.md` covers how. Inventing a model that the code does not share produces a translation layer nobody asked for."
+      "note": "Load domain.md only for new-feature modeling. Mine the existing model and model only what the feature needs. On other work, reuse existing ownership rather than forcing a DDD redesign. DDD-specific questions and routing in triage/cross apply only when developing a new feature; purpose, compatibility, graph and TDD checks remain universal."
     },
     {
       "id": "acceptance",
@@ -986,6 +992,19 @@
       "tier": 2,
       "title": "Cross the seams",
       "purpose": "Continue the trace through every CROSSING, and decide compatibility and deploy order at each one.",
+      "non_feature": {
+        "ask": [
+          "What is each seam's existing contract, and which side changes?",
+          "What errors, payloads, ordering, idempotency, auth or timing guarantees change?",
+          "What reachable consumers/providers can be verified, and which remain unknown?",
+          "Is the rollout compatible in both directions, and what deploy order is needed?"
+        ],
+        "exit_criteria": [
+          "Every changed seam has a recorded contract, compatibility decision, deploy order and executable check.",
+          "Reachable far-side nodes are traced; unknown consumers are not assumed absent.",
+          "Breaking changes have a migration plan and removals have usage evidence over the declared window."
+        ]
+      },
       "ask": [
         "For each seam: which bounded contexts does it join, and what is our relationship to the foreign one? That answer predicts the blast radius before any tracing.",
         "Is there an anti-corruption layer? If yes, the foreign change is absorbed there and the trace stops at that node. If we are conformist, it propagates into our domain and the trace continues.",
@@ -1031,6 +1050,20 @@
       "tier": 4,
       "title": "Verdict every behavior",
       "purpose": "Reduce the subgraph to a change set, at behavior granularity.",
+      "non_feature": {
+        "ask": [
+          "Which existing behaviors are modified, removed or protected as regressions?",
+          "Which node's existing purpose covers each behavior?",
+          "Does the observable contract change, and which callers or dependencies does the delta reach?",
+          "What invariant must remain true at each no_change node?",
+          "Does any verdict remain unsure? Resolve it with evidence before implementation."
+        ],
+        "exit_criteria": [
+          "Each behavior has a verdict, an existing owner and purpose, a requirement link where applicable, and a planned test.",
+          "Every no_change verdict states what remains true; callers of contract changes are accounted for.",
+          "Misplacement and uncertainty are resolved or escalated without an unsolicited DDD redesign."
+        ]
+      },
       "ask": [
         "What behaviors does this requirement need? For each: new, or a modification of one that exists?",
         "For each needed behavior: which node's purpose already covers it? That is where it belongs, whether or not the trace reached that node first.",
@@ -1182,7 +1215,7 @@
       "checks": [
         {
           "id": "G1",
-          "check": "The behavior exists in state with a verdict, a purpose it serves, and an owner - the aggregate or domain service whose invariant it enforces, or the application service or process manager whose sequence it belongs to.",
+          "check": "The behavior exists in state with a verdict, a purpose it serves, and an owner. New features use DDD ownership where relevant; other changes use the existing architecture without a modeling exercise.",
           "owner_phase": "triage"
         },
         {
@@ -1246,7 +1279,7 @@
         ],
         "record": "The command run, the exit status, and the failure message. Stored on the gate ledger entry."
       },
-      "on_fail": "Name the failing check and the phase that owns it, return there, and do not touch production code. Refuse the edit even if asked to proceed - the gate is the method's single hard constraint, and softening it removes the reason the rest exists.",
+      "on_fail": "Name the failing check and its owning phase, return there, and do not touch production code for that behavior. Neither gate, graph reporting nor the state-machine protocol can be waived.",
       "on_pass": "Append a ledger entry: behavior id, checks passed, observed red failure, commit, timestamp. Then implement that behavior only.",
       "exit_criteria": [
         "A ledger entry exists for every behavior about to be implemented."
@@ -1681,18 +1714,42 @@
       "<ref>.<task-slug>.graph.md": "the rendered view of that task",
       "index.md": "recall across every model snapshot, with divergences flagged"
     },
-    "rule": "Never hand-edit a derived file. The next append rebuilds it and the edit is lost. Decide through the CLI; read the folds.",
+    "rule": "Use the bundled Python CLI for every state mutation. Never generate scripts to edit state, hand-edit the log or derived files, or treat the packaged graph.json as task state. graph.json is read-only unless explicitly changing the skill. The next append rebuilds derived files; read them, do not write them.",
     "recall": "There is no shared mutable model, so there is nothing to forget to update and nothing to go stale. Two tasks that define one term differently produce a divergence in index.md - a finding, not a write that silently wins."
   },
   "tooling": {
-    "cli": "${CLAUDE_PLUGIN_ROOT}/scripts/design.py",
+    "cli": "scripts/design.py (resolve relative to the installed SKILL.md; invoke with Python 3 from the target project)",
+    "guides": {
+      "preflight": "cli.md#start-or-resume",
+      "requirements": "loop.md",
+      "language": "domain.md (new features only); otherwise cli.md#start-or-resume",
+      "acceptance": "loop.md#two-gates-two-altitudes",
+      "keyword": "tracing.md",
+      "locate": "tracing.md",
+      "trace": "tracing.md",
+      "cross": "crossing.md",
+      "triage": "tracing.md; domain.md only for new features",
+      "order": "crossing.md (if a seam is involved)",
+      "channels": "shapes.md",
+      "test": "gate.md#red-for-the-intended-reason",
+      "gate": "gate.md",
+      "implement": "shapes.md; current language guide only",
+      "retrace": "tracing.md",
+      "verify_requirement": "loop.md#reading-the-close",
+      "revalidate": "tracing.md#drift-detection",
+      "close": "cli.md#verify-and-close"
+    },
     "why": "Hand-written JSON is how state ends up malformed and phases end up half-recorded. Every subcommand validates, appends one decision, re-folds and renders - so the graph reaches the transcript on every change without the agent electing to print it.",
     "commands": {
-      "init": "design.py init --ref <REF> --title '<ticket title>'",
+      "init": "design.py init --ref <REF> --title '<ticket title>' [--kind feature|fix|refactor|migration|infra|docs|change]",
+      "status": "design.py status [--slug <task-slug>] [--phase <phase-id>] # read-only guidance, blockers, transitions and graph",
+      "note": "design.py note --phase <id> [--slug <s>] --json '<object using phase produces keys without []>' # supplemental findings, never replaces node/behavior/contract/gate records",
+      "contract": "design.py contract --slug <s> --id B1 --a '<success flow>' --e '<failures and policies>' --r '<dependencies>' --boundary '<parse point>' --layers '<wrappers or none>' --scope '<cleanup>' [--cardinality one|many|time_bounded]",
+      "check": "design.py check --kind baseline|acceptance|behavior --cmd '<trusted shell command>' [--id R1|B1] [--slug <s>] [--expect red|green] [--reason '<why this is intended red>'] [--timeout 120] # omit --cmd on green to reuse the red command",
       "requirement": "design.py requirement --id R1 --statement '<observable expectation>'",
       "acceptance": "design.py acceptance --id R1 --altitude http|cli|browser|event|workflow|data --cmd '<check>' --red '<observed failure, before any code>'; later --green once it passes on its own; or --manual-owner '<who closes it>' --manual-evidence '<on what evidence>' for a requirement that genuinely cannot be automated",
       "task": "design.py task --id T1 --slug <task-slug> --requirement R1",
-      "phase": "design.py phase <phase-id> [--slug <task-slug>]",
+      "phase": "design.py phase <phase-id> [--slug <task-slug>] [--behavior <B> (implement only)] [--skipped '<predicate does not hold>'] # validates graph edges; only conditional phases may be skipped",
       "node": "design.py node --slug <s> --path <p> --purpose '<capability>' --role <role> --verdict change|no_change|unsure [--stop-reason ABSORBED|MISPLACED|CROSSING|OPAQUE|VISITED|COMPLETE_UP|COMPLETE_DOWN|PASS_THROUGH|NO_ABSORPTION|CLEAR] [--belongs-in <path>  (required with MISPLACED)] [--depth N] [--evidence compiler|coverage|references|text|reasoning] [--why ...]",
       "edge": "design.py edge --slug <s> --from <p> --to <p> --kind calls|invokes|requests|publishes|subscribes|reads_writes|provisions",
       "behavior": "design.py behavior --slug <s> --id B1 --statement '<given X the caller sees Y>' --path <p> --symbol <sym> --status specified",
@@ -1710,10 +1767,13 @@
       "a no_change verdict with no stop reason (principle 3)",
       "a reversed verdict with no --why (principle 29c)",
       "an acceptance record with neither --red nor --green - the requirement gate needs a check that was red before any code (principle 26)",
-      "a gate with no observed red evidence (principle 27)",
+      "a gate with no annotated behavior contract or observed red evidence (principle 27)",
+      "unknown phases, transitions absent from graph.json, or skipping a mandatory phase",
+      "entering implement for the selected behavior with a missing, failed, restated or contract-stale gate; select --behavior when multiple behaviors are pending",
+      "accepting a successful check as red, a changed check as green, or an unknown check target before execution",
       "an invariant on an application service (principle 19)",
       "a task against a requirement that does not exist",
-      "closing a ticket with requirements still open (principle 11)",
+      "closing a ticket with requirements still open, or using --force to waive mandatory evidence",
       "closing with a requirement marked done that has no recorded red evidence, or a behavior never gated (principle 2)",
       "any decision on a closed ticket - appending would reopen it by side effect",
       "any decision naming a task slug that does not exist - it would fold into nothing and look like it worked",
@@ -1740,6 +1800,6 @@
     "hook": "hooks/hooks.json registers PostToolUse on Write|Edit|MultiEdit. Any write that lands in .design/ re-renders the tree and the index, so a direct edit by agent or human is caught too.",
     "stop_reasons_note": "design.py's --stop-reason choices are exactly phases[trace].stop_conditions, plus one value that is not a stop condition: CLEAR. CLEAR retracts a stop recorded by an earlier decision and is valid only when the verdict moves to change or unsure - a no_change verdict requires a real stop. Adding a stop condition to the trace phase means adding it to the CLI, or the normal stop becomes unrecordable and agents record a false ABSORBED; scripts/test_design.py asserts both halves of that mirror.",
     "acceptance_note": "Changing --cmd retracts any red_evidence and green transition recorded against the previous command: a different command is a different check, and evidence gathered against the old one proves nothing about the new one. Manual and automated closure are two modes of the same requirement and the latest decision picks one: recording a manual closure retracts any red/green evidence, and observing the check run retracts the manual closure. Neither is mixed, and a failure observed after a manual closure cannot be ignored by `close`. Changing altitude or harness retracts evidence exactly as changing --cmd does: each of the three redefines what is being checked.",
-    "gate_note": "The behavior gate is enforced by the ledger, not by the status field. `close` requires a gate_ledger entry carrying observed red evidence for every behavior, and `behavior --status green|gated` refuses without one - so the gate cannot be passed by declaring that it was. A gate proves the behavior AS STATED: the ledger entry records the statement it gated, and restating a behavior afterwards invalidates its gate until a fresh red is observed."
+    "gate_note": "The gate records a snapshot of the behavior statement and contract; changing either requires a fresh red and gate. close requires every behavior green with a current valid gate, not merely gated. check captures command, exit status, stdout, stderr, cwd, commit and timestamp; the agent must still assess intended failure and semantic checks G1-G10. Raw gate/acceptance observations remain available for externally executed checks, but are reported observations, not CLI-captured execution. The CLI validates structural transitions and recorded blockers; it cannot prove architectural judgment, prevent direct filesystem bypasses, or automatically evaluate every semantic guard. status displays those guards for review."
   }
 }

@@ -2,7 +2,7 @@
 
 Reusable skills that help coding agents understand a change before implementing
 it and identify code that is becoming difficult to maintain. Use them with
-Claude Code, Codex, OpenCode, or another agent that supports `SKILL.md`.
+Claude Code, Codex, Pi, OpenCode, or another agent that supports `SKILL.md`.
 
 A skill is a set of instructions and supporting resources loaded by your agent.
 These skills guide how the agent works in your project; they are not standalone
@@ -29,15 +29,17 @@ npm, and Git:
 npx --yes github:insomnius/harness
 ```
 
-The installer checks for `codex` and `claude` on PATH, plus Codex's configuration
-directory (`CODEX_HOME` or `~/.codex`). It installs both skills for every detected
-client:
+The installer checks for `codex`, `claude`, and `pi` on PATH, plus Codex's
+configuration directory (`CODEX_HOME` or `~/.codex`) and Pi's agent directory
+(`PI_CODING_AGENT_DIR` or `~/.pi/agent`). It installs both skills for every
+detected client:
 
 - **Claude Code:** registers the Harness marketplace and installs its plugins
   through the `claude` CLI, including design-thinking's rendering hook. This
   requires access to the GitHub repository.
-- **Codex:** copies the complete bundled skills into the current project's
-  `.agents/skills/` directory.
+- **Codex and Pi:** copies the complete bundled skills into the current project's
+  `.agents/skills/` directory, which both clients discover. If both are selected,
+  they share a single copy.
 
 ```sh
 # Preview detected clients and installation actions.
@@ -46,18 +48,19 @@ npx --yes github:insomnius/harness --dry-run
 # Select a client explicitly, including a desktop-only Codex setup.
 npx --yes github:insomnius/harness --agent codex
 npx --yes github:insomnius/harness --agent claude-code
+npx --yes github:insomnius/harness --agent pi
 
 # Install across projects, or select just one skill.
 npx --yes github:insomnius/harness --global
 npx --yes github:insomnius/harness --skill code-smells
 
-# Replace an older or modified Codex skill copy.
+# Replace an older or modified shared Codex/Pi skill copy.
 npx --yes github:insomnius/harness --agent codex --force
 ```
 
 The default scope is the current project. `--global` uses `~/.agents/skills`
-for Codex and Claude's user plugin scope. Repeat `--agent` or `--skill` to
-select multiple values. Identical Codex copies are skipped; different existing
+for Codex and Pi, and Claude's user plugin scope. Repeat `--agent` or `--skill`
+to select multiple values. Identical skill copies are skipped; different existing
 copies require `--force`. If detection finds no client, the installer explains
 how to select one explicitly. Start a new agent session after installation.
 
@@ -96,6 +99,29 @@ npx skills add insomnius/harness \
 
 This installs the complete skill folders for Codex. Add `-g` to make them
 available across projects.
+
+### Pi
+
+```sh
+npx --yes github:insomnius/harness --agent pi
+```
+
+Add `--global` to install across projects, or `--skill code-smells` to select
+one skill. Manual setup also works: copy each complete skill folder from
+`plugins/<name>/skills/<name>/` into `.agents/skills/` (project) or
+`~/.agents/skills/` (user). These shared locations are supported by both Pi
+and Codex; no separate copy is needed if already installed there.
+
+Start a new Pi session or run `/reload`, then invoke either skill:
+
+```text
+/skill:design-thinking Implement partial refunds with tests.
+/skill:code-smells Review the current diff for maintainability issues.
+```
+
+Pi installs standalone skills, not Claude's rendering hook. Design-thinking's
+CLI still renders graphs when recording decisions. Review the skills before
+granting project trust. See [Pi's skill documentation](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/skills.md).
 
 ### Other agents and installation options
 
@@ -136,8 +162,8 @@ the code involved. It can also resume or revalidate an existing trace.
 
 The skill directs your agent to:
 
-1. Translate the requirement into the project's domain language and identify
-   which component owns each rule.
+1. Understand the requirement using existing terminology and ownership; for
+   new features, model the needed domain vocabulary and boundaries.
 2. Trace relevant callers, dependencies, and boundaries to determine which
    files and behaviors need to change and which can stay as they are.
 3. Describe success paths, errors, and required dependencies, then record
@@ -147,7 +173,12 @@ The skill directs your agent to:
 
 This is an opinionated workflow: it requires recorded test evidence before
 behavior changes and does not treat an unverified implementation as complete.
-Expect more investigation and bookkeeping than a quick edit.
+Graph reports and the state machine are mandatory alongside TDD; DDD modeling
+is reserved for new features. The entry-point instructions load detailed guides
+only when relevant, and the bundled CLI shows the current phase, blockers and
+transitions. It can capture test execution directly, so agents do not need to
+write scripts to manipulate workflow state. Expect more investigation and
+bookkeeping than a quick edit.
 
 ### Example requests
 

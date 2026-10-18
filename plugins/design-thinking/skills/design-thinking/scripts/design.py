@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Record decisions about a change. The agent's tool call, one per phase move.
 
-Every subcommand APPENDS ONE DECISION to `.design/<ref>.log.jsonl` and then
+Every mutating subcommand APPENDS ONE DECISION to `.design/<ref>.log.jsonl` and then
 re-folds that log into the trace, the model snapshot, the tree, the per-task
 graph and the index. Nothing is edited in place, so a verdict that was later
 reversed stays readable with the reason that moved it.
@@ -12,6 +12,8 @@ on the next ticket.
 """
 
 import argparse
+import json
+import math
 import subprocess
 import sys
 from pathlib import Path
@@ -20,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import design_state as st  # noqa: E402
 import fold as fd  # noqa: E402
 import render_graph as rg  # noqa: E402
+import workflow as wf  # noqa: E402
 
 ROLES = ["entrypoint", "handler", "application_service", "aggregate_root", "entity",
          "value_object", "domain_service", "repository", "process_manager",
@@ -133,7 +136,7 @@ def cmd_init(a):
         print(tree)
         return 0
     return record(dd, a.ref, "ticket.init", f"initialised {dd}/{a.ref}.log.jsonl",
-                  ticket_ref=a.ref, title=a.title, commit=head())
+                  ticket_ref=a.ref, title=a.title, change_kind=a.kind, commit=head())
 
 
 def cmd_requirement(a):
@@ -208,7 +211,7 @@ def cmd_acceptance(a):
     return record(dd, ref, "acceptance.set",
                   f"{a.id} acceptance {'green' if a.green else 'red'}",
                   id=a.id, altitude=a.altitude, harness=a.harness, cmd=a.cmd,
-                  red=a.red, green=a.green, why=a.why)
+                  red=a.red, green=a.green, execution=getattr(a, "execution", None), why=a.why)
 
 
 def cmd_task(a):
@@ -242,18 +245,76 @@ def cmd_task(a):
                   requirement=a.requirement, commit=head(), why=a.why)
 
 
+def phase_context(ticket, traces, slug):
+    current = traces[slug] if slug else ticket
+    skipped = {s["phase"] for s in ticket.get("skipped_phases", [])
+               if s.get("task") == slug}
+    failed = [c for tr in ([traces[slug]] if slug else traces.values())
+              for g in tr.get("gate_ledger", []) for c in g.get("checks_failed", [])]
+    edges = wf.transitions(current["current_phase"], skipped,
+                           current.get("resume_phase"), failed)
+    return current, edges
+
+
+def transition_blockers(target, ticket, traces, slug, behavior_id=None):
+    selected = {slug: traces[slug]} if slug else traces
+    req_id = traces[slug].get("requirement_id") if slug else ticket.get("current_requirement")
+    req = next((r for r in ticket.get("requirements", []) if r["id"] == req_id), {})
+    blockers = []
+    if target == "keyword":
+        acc = req.get("acceptance") or {}
+        if not ((acc.get("red_evidence") or {}).get("failure") or
+                (acc.get("manual_closure") or {}).get("who")):
+            blockers.append("requirement needs red acceptance evidence or a manual closure owner")
+    if target == "implement":
+        behaviors = [(s, b, tr.get("gate_ledger", [])) for s, tr in selected.items()
+                     for b in tr.get("behaviors", []) if b.get("status") != "green"]
+        if behavior_id:
+            behaviors = [(s, b, ledger) for s, b, ledger in behaviors if b["id"] == behavior_id]
+        elif len(behaviors) > 1:
+            return ["select the gated behavior with phase implement --slug <task> --behavior <B>"]
+        if not behaviors:
+            blockers.append("no matching pending behavior; record the behavior before implementation")
+        for s, b, ledger in behaviors:
+            problem = wf.gate_problem(b, ledger)
+            if problem:
+                blockers.append(f"{s}:{b['id']}: {problem}")
+        for s, tr in selected.items():
+            if any(n.get("verdict") == "unsure" for n in tr.get("nodes", [])):
+                blockers.append(f"{s}: resolve unsure verdicts before implementation")
+    return blockers
+
+
 def cmd_phase(a):
     dd = dd_or_die()
     ref = active_ref(dd, a.ref)
+    ticket, traces, _ = state(dd, ref)
     if a.slug:
-        # Without this, a typo'd slug silently advances the ticket phase instead.
         require_task(dd, ref, a.slug, "phase change")
-    if a.skipped:
-        # A phase silently not run is indistinguishable from one forgotten.
+    try:
+        wf.phase_definition(a.phase)
+    except ValueError as exc:
+        sys.exit(str(exc))
+    current, edges = phase_context(ticket, traces, a.slug)
+    if a.behavior and (not a.slug or a.phase != "implement" or a.skipped):
+        sys.exit("--behavior selects implementation permission for one task behavior; use phase implement --slug <s>")
+    if a.skipped is not None:
+        if not a.skipped.strip():
+            sys.exit("--skipped needs a nonempty applicability reason")
+        graph = wf.spec()
+        if a.phase not in graph["phase_applicability"]["conditional"]:
+            sys.exit(f"{a.phase} is mandatory and cannot be skipped")
         return record(dd, ref, "phase.skip", f"phase {a.phase} skipped: {a.skipped}",
                       phase=a.phase, slug=a.slug, skipped=a.skipped, why=a.why)
+    allowed = {e["to"] for e in edges}
+    if a.phase != current["current_phase"] and a.phase not in allowed:
+        sys.exit(f"invalid transition {current['current_phase']} -> {a.phase}; "
+                 f"available: {', '.join(sorted(allowed))}. Run `design.py status`.")
+    blockers = transition_blockers(a.phase, ticket, traces, a.slug, a.behavior)
+    if blockers:
+        sys.exit("blocked: " + "; ".join(blockers))
     return record(dd, ref, "phase.set", f"phase -> {a.phase}",
-                  phase=a.phase, slug=a.slug, why=a.why)
+                  phase=a.phase, slug=a.slug, behavior=a.behavior, why=a.why)
 
 
 def cmd_node(a):
@@ -341,21 +402,14 @@ def cmd_behavior(a):
     if a.status in ("gated", "green"):
         prior = next((x for x in traces[a.slug].get("behaviors", [])
                       if x.get("id") == a.id), {})
-        wants = a.statement or prior.get("statement")
-        entry = next((g for g in traces[a.slug].get("gate_ledger", [])
-                      if g.get("behavior_id") == a.id), None)
-        gated = bool(entry and (entry.get("red_evidence") or {}).get("failure")
-                     and not entry.get("checks_failed"))
-        if gated and entry.get("statement") and entry["statement"] != wants:
-            sys.exit(f"{a.id} was gated as {entry['statement']!r} and is now stated as "
-                     f"{wants!r}. The gate proves the behavior as stated, so a changed "
-                     "statement needs a fresh red - re-run `design.py gate` for it.")
-        if not gated:
-            sys.exit(f"{a.id} has no gate ledger entry, so --status {a.status} would be a "
-                     "claim rather than a record. No code for a behavior until its test "
-                     "is red for the intended reason (the behavior gate) - run "
-                     f"`design.py gate --slug {a.slug} --id {a.id} --red '<observed "
-                     "failure>'` first.")
+        proposed = {**prior, "id": a.id, "statement": a.statement}
+        for field in ("path", "symbol"):
+            if getattr(a, field) is not None:
+                proposed[field] = getattr(a, field)
+        problem = wf.gate_problem(proposed, traces[a.slug].get("gate_ledger", []))
+        if problem:
+            sys.exit(f"{a.id}: {problem}. Cannot set --status {a.status}; "
+                     "record the current contract and intended red, then re-gate.")
     return record(dd, ref, "behavior.set", f"{a.id} {a.status or 'recorded'}",
                   slug=a.slug, id=a.id, statement=a.statement, path=a.path,
                   symbol=a.symbol, behavior_kind=a.kind, verdict=a.verdict,
@@ -371,6 +425,8 @@ def cmd_gate(a):
               if x.get("id") == a.id), None)
     if b is None:
         sys.exit(f"no behavior {a.id} - record it before gating it")
+    if not b.get("contract"):
+        sys.exit(f"{a.id} needs an annotated contract before gating; run `design.py contract --help`")
     if not a.red:
         sys.exit("the gate needs the observed failure verbatim: --red '<output>'. "
                  "A test red because the suite will not build proves nothing "
@@ -379,7 +435,8 @@ def cmd_gate(a):
     msg = f"{a.id} gated" if not a.failed else f"{a.id} gate FAILED: {a.failed}"
     return record(dd, ref, "gate.record", msg, slug=a.slug, id=a.id, red=a.red,
                   cmd=a.cmd, passed=csv(a.passed), failed=csv(a.failed),
-                  statement=statement, why=a.why)
+                  statement=statement, contract=b["contract"],
+                  execution=getattr(a, "execution", None), why=a.why)
 
 
 def cmd_order(a):
@@ -430,9 +487,11 @@ def cmd_close(a):
     ticket, _, _ = state(dd, ref)
     reqs = (ticket or {}).get("requirements", [])
     open_ = [r["id"] for r in reqs if r.get("status") not in ("done", "descoped")]
-    if open_ and not a.force:
+    if a.force:
+        sys.exit("--force cannot waive mandatory TDD evidence; resolve or descope requirements with --why")
+    if open_:
         sys.exit(f"requirements still open: {', '.join(open_)}. One requirement closes "
-                 "before the next opens - pass --force to override deliberately.")
+                 "before the next opens - finish or descope them with --why.")
 
     # Principle 2: closure is observed, not asserted. A requirement marked done
     # with no recorded red evidence is an opinion, and an ungated behavior is a
@@ -468,7 +527,7 @@ def cmd_close(a):
         for slug, tr in traces.items():
             ledger = {g.get("behavior_id"): g for g in tr.get("gate_ledger", [])}
             for b in tr.get("behaviors", []):
-                if b.get("status") not in ("green", "gated"):
+                if b.get("status") != "green":
                     ungated.append(f"{slug}:{b['id']} (status {b.get('status')})")
                     continue
                 entry = ledger.get(b.get("id"))
@@ -480,8 +539,8 @@ def cmd_close(a):
                 elif entry.get("checks_failed"):
                     ungated.append(f"{slug}:{b['id']} (gate checks failed: "
                                    + ", ".join(entry["checks_failed"]) + ")")
-                elif entry.get("statement") and entry["statement"] != b.get("statement"):
-                    ungated.append(f"{slug}:{b['id']} (restated since it was gated)")
+                elif wf.gate_problem(b, tr.get("gate_ledger", [])):
+                    ungated.append(f"{slug}:{b['id']} ({wf.gate_problem(b, tr.get('gate_ledger', []))})")
         problems = []
         if unproven:
             problems.append("requirements marked done with no recorded red evidence: "
@@ -504,7 +563,7 @@ def cmd_close(a):
         if problems:
             sys.exit("; ".join(problems)
                      + ". Closure is observed, not asserted (principle 2) - "
-                       "record the evidence, or pass --force to close deliberately.")
+                       "record the evidence before closing.")
     return record(dd, ref, "ticket.close",
                   f"{ref} closed - the log and every snapshot stay in place",
                   commit=head(), force=a.force, why=a.why)
@@ -533,7 +592,7 @@ def cmd_log(a):
 
 
 def cmd_rebuild(a):
-    """Re-fold every log. Use after editing a log by hand, or on resume."""
+    """Re-fold every log on resume or to restore derived files."""
     dd = dd_or_die()
     fd.rebuild_all(dd)
     _, tree = rg.render(dd, ref=a.ref)
@@ -555,6 +614,189 @@ def cmd_show(a):
     return 0
 
 
+def cmd_status(a):
+    dd = st.find_design_dir()
+    if dd is None:
+        print("Next: design.py init --ref <REF> --title '<outcome>'")
+        print("Guide: cli.md")
+        return 0
+    ref = active_ref(dd, a.ref, mutating=False)
+    ticket, traces, models = state(dd, ref)
+    if a.slug:
+        require_task(dd, ref, a.slug, "status")
+    current, edges = phase_context(ticket, traces, a.slug)
+    name = a.phase or current["current_phase"]
+    try:
+        phase = wf.phase_definition(name)
+    except ValueError as exc:
+        sys.exit(str(exc))
+    print(f"Ticket: {ref} ({ticket['status']})")
+    print(f"Current: {current['current_phase']}" + (f" / task {a.slug}" if a.slug else " / ticket"))
+    if current.get("current_behavior"):
+        print(f"Selected behavior: {current['current_behavior']}")
+    print(f"Guide: {wf.spec()['tooling']['guides'][name]}")
+    if "non_feature" in phase and ticket.get("change_kind") != "feature":
+        phase = {**phase, **phase["non_feature"]}
+        print("DDD modeling: not applicable; reuse existing terminology and ownership")
+    print(f"Phase: {name} - {phase['purpose']}")
+    for question in phase.get("flow_first", {}).get("ask", []):
+        print(f"  Flow first: {question}")
+    for question in phase.get("ask", []):
+        print(f"  Ask: {question}")
+    for step in phase.get("passes", []):
+        print(f"  Pass {step['id']}: {step['do']}")
+        print(f"    Exit: {step['exit']}")
+    for check in phase.get("checks", []):
+        print(f"  {check['id']}: {check['check']}")
+    for criterion in phase.get("exit_criteria", []):
+        print(f"  Exit: {criterion}")
+    if phase.get("produces"):
+        print("  Produces: " + ", ".join(phase["produces"]))
+    if ticket["status"] != "closed":
+        print("Transitions (evaluate each stated guard against the repository):")
+        for edge in edges:
+            blockers = transition_blockers(edge["to"], ticket, traces, a.slug)
+            print(f"  -> {edge['to']}: {edge.get('guard', 'phase exit criteria satisfied')}")
+            for problem in blockers:
+                print(f"     Blocked: {problem}")
+        if current["current_phase"] == "gate":
+            selected = {a.slug: traces[a.slug]} if a.slug else traces
+            for slug, tr in selected.items():
+                for behavior in tr.get("behaviors", []):
+                    problem = wf.gate_problem(behavior, tr.get("gate_ledger", []))
+                    if problem:
+                        print(f"Blocked: {slug}:{behavior['id']}: {problem}")
+    else:
+        print("Next: open a new ticket; this ticket is read-only")
+    print()
+    model_views = [(Path(f"{ref}.{s}.model.json"), m) for s, m in models.items()]
+    trace_views = [(Path(f"{ref}.{s}.trace.json"), tr) for s, tr in traces.items()]
+    print(rg.render_tree(model_views, Path(f"{ref}.json"), ticket, trace_views))
+    return 0
+
+
+def cmd_note(a):
+    dd = dd_or_die()
+    ref = active_ref(dd, a.ref)
+    if a.slug:
+        require_task(dd, ref, a.slug, "phase note")
+    try:
+        phase = wf.phase_definition(a.phase)
+        data = json.loads(a.json)
+    except ValueError as exc:
+        sys.exit(str(exc))
+    allowed = {field.split()[0].removesuffix("[]") for field in phase.get("produces", [])}
+    if not isinstance(data, dict) or not data or set(data) - allowed:
+        sys.exit(f"--json must be a nonempty object using this phase's produces keys: {', '.join(sorted(allowed))}")
+    return record(dd, ref, "phase.note", f"{a.phase} findings recorded",
+                  slug=a.slug, phase=a.phase, data=data, why=a.why)
+
+
+def cmd_contract(a):
+    dd = dd_or_die()
+    ref = active_ref(dd, a.ref)
+    traces, _ = require_task(dd, ref, a.slug, "contract")
+    if not any(b["id"] == a.id for b in traces[a.slug].get("behaviors", [])):
+        sys.exit(f"no behavior {a.id} - record it before its contract")
+    fields = {"A": a.a, "E": a.e, "R": a.r, "boundary": a.boundary,
+              "layers": a.layers, "scope": a.scope, "cardinality": a.cardinality}
+    if any(not value.strip() for value in fields.values()):
+        sys.exit("contract fields must be nonempty; state 'none' explicitly where appropriate")
+    return record(dd, ref, "contract.set", f"{a.id} contract annotated",
+                  slug=a.slug, id=a.id, contract=fields, why=a.why)
+
+
+def cmd_check(a):
+    dd = dd_or_die()
+    ref = active_ref(dd, a.ref)
+    ticket, traces, _ = state(dd, ref)
+    prior = {}
+    behavior = None
+    if not math.isfinite(a.timeout) or a.timeout <= 0:
+        sys.exit("--timeout must be finite and positive")
+    if a.kind == "baseline":
+        if a.expect or a.id or a.slug or a.altitude:
+            sys.exit("baseline records suite output, not a requirement or behavior observation")
+    else:
+        if not a.expect or not a.id:
+            sys.exit("acceptance/behavior checks require --id and --expect red|green")
+        if a.kind == "acceptance":
+            if a.slug:
+                sys.exit("acceptance checks belong to a requirement; omit --slug")
+            req = next((r for r in ticket.get("requirements", []) if r["id"] == a.id), None)
+            if req is None:
+                sys.exit(f"no requirement {a.id}")
+            prior = req.get("acceptance") or {}
+        else:
+            if not a.slug:
+                sys.exit("behavior checks require --slug")
+            if a.altitude:
+                sys.exit("--altitude belongs to acceptance checks")
+            require_task(dd, ref, a.slug, "check")
+            behavior = next((b for b in traces[a.slug].get("behaviors", []) if b["id"] == a.id), None)
+            if behavior is None:
+                sys.exit(f"no behavior {a.id}")
+            if not behavior.get("contract"):
+                sys.exit(f"{a.id} needs a contract before its check; run `design.py contract --help`")
+            prior = next((g for g in traces[a.slug].get("gate_ledger", [])
+                          if g.get("behavior_id") == a.id), {})
+        if a.expect == "red" and not (a.reason or "").strip():
+            sys.exit("--reason must explain why this failure proves the intended missing behavior")
+        if a.expect == "green":
+            evidence = prior.get("red_evidence") or {}
+            if not evidence.get("failure"):
+                sys.exit("no red evidence; observe the intended failure before green")
+            if behavior:
+                problem = wf.gate_problem(behavior, traces[a.slug].get("gate_ledger", []))
+                if problem:
+                    sys.exit(problem)
+            if a.cmd and a.cmd != evidence.get("command"):
+                sys.exit("a different command needs its own red before green")
+            if a.altitude and a.altitude != prior.get("altitude"):
+                sys.exit("a different altitude needs its own red before green")
+    command = a.cmd or (prior.get("red_evidence") or {}).get("command")
+    if not command or not command.strip():
+        sys.exit("--cmd is required for a new check")
+    try:
+        result = subprocess.run(command, shell=True, capture_output=True, text=True,
+                                errors="replace", timeout=a.timeout)
+    except (OSError, subprocess.SubprocessError) as exc:
+        sys.exit(f"check could not complete; no evidence recorded: {exc}")
+    execution = {"kind": a.kind, "command": command, "exit_status": result.returncode,
+                 "stdout": result.stdout, "stderr": result.stderr, "cwd": str(Path.cwd()),
+                 "commit": head(), "at": st.now(), "reason": a.reason}
+    if result.stdout:
+        print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
+    if result.stderr:
+        print(result.stderr, end="" if result.stderr.endswith("\n") else "\n", file=sys.stderr)
+    if result.returncode < 0:
+        sys.exit("check terminated by signal; no red/green evidence recorded")
+    observed = "green" if result.returncode == 0 else "red"
+    if a.kind == "baseline":
+        return record(dd, ref, "check.run", f"baseline {observed}", execution=execution, why=a.why)
+    failure = result.stdout + result.stderr
+    if observed != a.expect:
+        # A regression must retract a previous green even when green was expected.
+        if observed == "red":
+            record(dd, ref, "check.failed", f"{a.id} check regressed",
+                   check_kind=a.kind, slug=a.slug, id=a.id, execution=execution, why=a.why)
+        sys.exit(f"expected {a.expect}, observed {observed}; no passing evidence recorded")
+    if observed == "red" and not failure.strip():
+        record(dd, ref, "check.failed", f"{a.id} check failed without diagnostics",
+               check_kind=a.kind, slug=a.slug, id=a.id, execution=execution, why=a.why)
+        sys.exit("check exited nonzero without output; prior green retracted, no intended red accepted")
+    if a.kind == "acceptance":
+        return cmd_acceptance(argparse.Namespace(
+            ref=ref, id=a.id, cmd=command, altitude=a.altitude, harness=None,
+            red=failure if observed == "red" else None, green=observed == "green",
+            manual_owner=None, manual_evidence=None, execution=execution, why=a.why))
+    if observed == "red":
+        return cmd_gate(argparse.Namespace(ref=ref, slug=a.slug, id=a.id, red=failure,
+                        cmd=command, passed=None, failed=None, execution=execution, why=a.why))
+    return record(dd, ref, "behavior.green", f"{a.id} green", slug=a.slug, id=a.id,
+                  execution=execution, why=a.why)
+
+
 def build_parser():
     ap = argparse.ArgumentParser(prog="design.py", description=__doc__)
     ap.add_argument("--ref", help="ticket ref; defaults to the single open ticket")
@@ -570,6 +812,8 @@ def build_parser():
     s = add("init", "start a decision log for a ticket", cmd_init, why=False)
     s.add_argument("--ref", required=True)
     s.add_argument("--title")
+    s.add_argument("--kind", choices=["feature", "fix", "refactor", "migration", "infra", "docs", "change"],
+                   default="change", help="feature enables DDD modeling; other work reuses existing ownership")
 
     s = add("requirement", "record a requirement (tier 0)", cmd_requirement)
     s.add_argument("--id", required=True)
@@ -599,9 +843,10 @@ def build_parser():
     s.add_argument("--title")
     s.add_argument("--requirement", required=True)
 
-    s = add("phase", "advance the phase", cmd_phase)
+    s = add("phase", "advance through graph.json's allowed transitions", cmd_phase)
     s.add_argument("phase")
     s.add_argument("--slug", help="set the task's phase instead of the ticket's")
+    s.add_argument("--behavior", help="select the gated behavior when entering implement")
     s.add_argument("--skipped", metavar="WHY",
                    help="record that this phase's predicate did not hold, "
                         "instead of advancing to it")
@@ -681,12 +926,38 @@ def build_parser():
     s.add_argument("--identity", help="for --role entity: the branded id type it carries")
 
     s = add("close", "close the ticket; nothing is moved or deleted", cmd_close)
-    s.add_argument("--force", action="store_true")
+    s.add_argument("--force", action="store_true", help=argparse.SUPPRESS)
 
     s = add("log", "print the decisions, and the reversals among them", cmd_log, why=False)
     s.add_argument("--tail", type=int, default=0)
 
     add("rebuild", "re-fold every log into its documents", cmd_rebuild, why=False)
+
+    s = add("status", "show phase guidance, blockers, transitions and graph", cmd_status, why=False)
+    s.add_argument("--slug", help="inspect a task instead of the ticket")
+    s.add_argument("--phase", help="inspect a phase's instructions without advancing")
+
+    s = add("note", "record supplemental phase outputs without editing JSON state", cmd_note)
+    s.add_argument("--phase", required=True)
+    s.add_argument("--slug")
+    s.add_argument("--json", required=True, help="JSON object using the phase's produces keys (without [])")
+
+    s = add("contract", "annotate a behavior's A/E/R before its gate", cmd_contract)
+    s.add_argument("--slug", required=True)
+    s.add_argument("--id", required=True)
+    for field in ("a", "e", "r", "boundary", "layers", "scope"):
+        s.add_argument("--" + field, required=True)
+    s.add_argument("--cardinality", choices=["one", "many", "time_bounded"], default="one")
+
+    s = add("check", "run a trusted check and capture its evidence", cmd_check)
+    s.add_argument("--kind", choices=["baseline", "acceptance", "behavior"], required=True)
+    s.add_argument("--id")
+    s.add_argument("--slug")
+    s.add_argument("--expect", choices=["red", "green"])
+    s.add_argument("--cmd", help="trusted shell command; omitted on green to reuse the recorded command")
+    s.add_argument("--reason", help="why an expected failure proves the intended missing behavior")
+    s.add_argument("--timeout", type=float, default=120)
+    s.add_argument("--altitude", choices=["browser", "http", "cli", "event", "workflow", "data"])
 
     s = add("show", "render without deciding anything", cmd_show, why=False)
     s.add_argument("--level", type=int, default=2,

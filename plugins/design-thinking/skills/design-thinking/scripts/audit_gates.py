@@ -71,6 +71,15 @@ def main():
                 "--verdict", "change", "--depth", "0")
         repo.ok("behavior", "--slug", "a", "--id", "B1", "--statement", "b",
                 "--path", "n.go", "--status", "specified", "--requirement", "R1")
+        attack("gate without a contract", repo,
+               "gate", "--slug", "a", "--id", "B1", "--red", "missing b")
+        attack("unknown phase", repo, "phase", "made_up")
+        attack("jump directly to implementation", repo, "phase", "implement")
+        attack("skip the behavior gate", repo, "phase", "gate", "--skipped", "tiny fix")
+        attack("force close without evidence", repo, "close", "--force")
+        repo.ok("contract", "--slug", "a", "--id", "B1", "--a", "b",
+                "--e", "failure: propagate", "--r", "fixture", "--boundary", "test input",
+                "--layers", "none", "--scope", "test cleanup")
         attack("green without any gate", repo,
                "behavior", "--slug", "a", "--id", "B1", "--statement", "b",
                "--status", "green")

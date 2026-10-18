@@ -43,23 +43,45 @@ test('no detected agents produces an actionable error without installing', t => 
   assert.deepEqual(f.commands, []);
 });
 
-test('Codex CLI detection installs both complete skills into the project', t => {
-  const f = fixture(t, ['codex']);
-  assert.equal(install(f.options), 0);
-  for (const name of ['design-thinking', 'code-smells']) {
-    const source = join(repository, 'plugins', name, 'skills', name);
-    const target = join(f.cwd, '.agents/skills', name);
-    const check = (a, b) => {
-      for (const entry of readdirSync(a, { withFileTypes: true })) {
-        if (entry.name === '__pycache__' || /\.py[cod]$/.test(entry.name)) continue;
-        if (entry.isDirectory()) check(join(a, entry.name), join(b, entry.name));
-        else assert.deepEqual(readFileSync(join(b, entry.name)), readFileSync(join(a, entry.name)));
-      }
-    };
-    check(source, target);
-  }
+for (const agent of ['codex', 'pi']) {
+  test(`${agent} CLI detection installs both complete skills into the project`, t => {
+    const f = fixture(t, [agent]);
+    assert.equal(install(f.options), 0);
+    for (const name of ['design-thinking', 'code-smells']) {
+      const source = join(repository, 'plugins', name, 'skills', name);
+      const target = join(f.cwd, '.agents/skills', name);
+      const check = (a, b) => {
+        for (const entry of readdirSync(a, { withFileTypes: true })) {
+          if (entry.name === '__pycache__' || /\.py[cod]$/.test(entry.name)) continue;
+          if (entry.isDirectory()) check(join(a, entry.name), join(b, entry.name));
+          else assert.deepEqual(readFileSync(join(b, entry.name)), readFileSync(join(a, entry.name)));
+        }
+      };
+      check(source, target);
+    }
+    assert.deepEqual(f.commands, []);
+    assert.equal(existsSync(join(f.userDirectory, '.agents')), false);
+  });
+}
+
+for (const agentDirectory of ['.pi/agent', 'custom-pi-agent']) {
+  test(`Pi configuration detection supports ${agentDirectory} without the CLI`, t => {
+    const f = fixture(t);
+    const directory = join(f.userDirectory, agentDirectory);
+    mkdirSync(directory, { recursive: true });
+    const environment = { ...f.options.environment };
+    if (agentDirectory === 'custom-pi-agent') environment.PI_CODING_AGENT_DIR = directory;
+    assert.equal(install({ ...f.options, environment }), 0);
+    assert.ok(existsSync(join(f.cwd, '.agents/skills/design-thinking/SKILL.md')));
+    assert.ok(f.messages.some(message => message === 'Agents: pi (detected)'));
+  });
+}
+
+test('explicit Pi selection works before installation and selects only the requested skill', t => {
+  const f = fixture(t, ['codex', 'claude']);
+  assert.equal(install({ ...f.options, argv: ['--agent', 'pi', '--skill', 'code-smells'] }), 0);
+  assert.deepEqual(readdirSync(join(f.cwd, '.agents/skills')), ['code-smells']);
   assert.deepEqual(f.commands, []);
-  assert.equal(existsSync(join(f.userDirectory, '.agents')), false);
 });
 
 test('Codex configuration detects a desktop setup without the CLI', t => {
@@ -75,10 +97,12 @@ test('explicit selection permits Codex setup before a client is installed', t =>
   assert.deepEqual(readdirSync(join(f.cwd, '.agents/skills')), ['code-smells']);
 });
 
-test('both clients are detected and Claude gets marketplace plugins with project scope', t => {
-  const f = fixture(t, ['claude', 'codex']);
+test('all clients are detected and Codex/Pi share one copy alongside Claude plugins', t => {
+  const f = fixture(t, ['claude', 'codex', 'pi']);
   assert.equal(install(f.options), 0);
   assert.ok(existsSync(join(f.cwd, '.agents/skills/design-thinking/scripts/design.py')));
+  assert.ok(f.messages.some(message => message === 'Agents: codex, claude-code, pi (detected)'));
+  assert.equal(f.messages.filter(message => message.startsWith('Codex/Pi: installed')).length, 2);
   assert.deepEqual(f.commands, [
     ['claude', 'plugin', 'marketplace', 'add', 'insomnius/harness', '--scope', 'project'],
     ['claude', 'plugin', 'install', 'design-thinking@harness', '--scope', 'project'],
@@ -93,8 +117,8 @@ test('Claude-only detection does not create Codex skill folders', t => {
   assert.equal(f.commands.length, 3);
 });
 
-test('global installation targets the user directory and Claude user scope', t => {
-  const f = fixture(t, ['claude', 'codex']);
+test('global installation targets shared Codex/Pi user skills and Claude user scope', t => {
+  const f = fixture(t, ['claude', 'codex', 'pi']);
   assert.equal(install({ ...f.options, argv: ['--global'] }), 0);
   assert.ok(existsSync(join(f.userDirectory, '.agents/skills/code-smells/SKILL.md')));
   assert.equal(existsSync(join(f.cwd, '.agents')), false);
@@ -110,7 +134,7 @@ test('explicit agent and skill choices narrow the installation', t => {
 });
 
 test('dry run detects clients and reports actions without writes or commands', t => {
-  const f = fixture(t, ['claude', 'codex']);
+  const f = fixture(t, ['claude', 'codex', 'pi']);
   assert.equal(install({ ...f.options, argv: ['--dry-run'] }), 0);
   assert.deepEqual(readdirSync(f.cwd), []);
   assert.deepEqual(readdirSync(f.userDirectory), []);
@@ -118,36 +142,65 @@ test('dry run detects clients and reports actions without writes or commands', t
   assert.ok(f.messages.some(message => message.includes('design-thinking@harness')));
 });
 
-test('an unchanged Codex installation is a no-op', t => {
-  const f = fixture(t, ['codex']);
-  install(f.options);
-  const target = join(f.cwd, '.agents/skills/design-thinking/SKILL.md');
-  const before = statSync(target);
-  assert.equal(install(f.options), 0);
-  assert.equal(statSync(target).mtimeMs, before.mtimeMs);
-  assert.ok(f.messages.some(message => message.includes('already up to date')));
-});
+for (const agent of ['codex', 'pi']) {
+  test(`an unchanged ${agent} installation is a no-op`, t => {
+    const f = fixture(t, [agent]);
+    install(f.options);
+    const target = join(f.cwd, '.agents/skills/design-thinking/SKILL.md');
+    const before = statSync(target);
+    assert.equal(install(f.options), 0);
+    assert.equal(statSync(target).mtimeMs, before.mtimeMs);
+    assert.ok(f.messages.some(message => message.includes('already up to date')));
+  });
 
-test('existing differing skills are preserved and checked before any installation', t => {
-  const f = fixture(t, ['codex', 'claude']);
-  const target = join(f.cwd, '.agents/skills/code-smells');
-  mkdirSync(target, { recursive: true });
-  writeFileSync(join(target, 'SKILL.md'), 'my custom skill');
-  assert.throws(() => install(f.options), /--force/);
-  assert.equal(readFileSync(join(target, 'SKILL.md'), 'utf8'), 'my custom skill');
-  assert.equal(existsSync(join(f.cwd, '.agents/skills/design-thinking')), false);
+  test(`${agent} differing skills are preserved and checked before any installation`, t => {
+    const f = fixture(t, [agent, 'claude']);
+    const target = join(f.cwd, '.agents/skills/code-smells');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, 'SKILL.md'), 'my custom skill');
+    assert.throws(() => install(f.options), /--force/);
+    assert.equal(readFileSync(join(target, 'SKILL.md'), 'utf8'), 'my custom skill');
+    assert.equal(existsSync(join(f.cwd, '.agents/skills/design-thinking')), false);
+    assert.deepEqual(f.commands, []);
+  });
+
+  test(`${agent} force replaces the selected skill and removes obsolete files`, t => {
+    const f = fixture(t, [agent]);
+    const target = join(f.cwd, '.agents/skills/code-smells');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, 'old.txt'), 'old content');
+    assert.equal(install({ ...f.options, argv: ['--skill', 'code-smells', '--force'] }), 0);
+    assert.ok(existsSync(join(target, 'SKILL.md')));
+    assert.equal(existsSync(join(target, 'old.txt')), false);
+    assert.deepEqual(readdirSync(join(f.cwd, '.agents/skills')), ['code-smells']);
+  });
+
+  test(`${agent} dry run reports a conflict without changing it`, t => {
+    const f = fixture(t, [agent]);
+    const target = join(f.cwd, '.agents/skills/code-smells');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, 'SKILL.md'), 'custom');
+    assert.equal(install({ ...f.options, argv: ['--dry-run'] }), 0);
+    assert.equal(readFileSync(join(target, 'SKILL.md'), 'utf8'), 'custom');
+    assert.equal(existsSync(join(f.cwd, '.agents/skills/design-thinking')), false);
+    assert.ok(f.messages.some(message => message.includes('exists; requires --force')));
+  });
+}
+
+test('Pi global-only selection installs into the shared user location', t => {
+  const f = fixture(t);
+  assert.equal(install({ ...f.options, argv: ['--agent', 'pi', '--global'] }), 0);
+  assert.ok(existsSync(join(f.userDirectory, '.agents/skills/design-thinking/scripts/design.py')));
+  assert.ok(existsSync(join(f.userDirectory, '.agents/skills/code-smells/SKILL.md')));
+  assert.deepEqual(readdirSync(f.cwd), []);
   assert.deepEqual(f.commands, []);
 });
 
-test('force replaces the selected skill and removes obsolete files', t => {
-  const f = fixture(t, ['codex']);
-  const target = join(f.cwd, '.agents/skills/code-smells');
-  mkdirSync(target, { recursive: true });
-  writeFileSync(join(target, 'old.txt'), 'old content');
-  assert.equal(install({ ...f.options, argv: ['--skill', 'code-smells', '--force'] }), 0);
-  assert.ok(existsSync(join(target, 'SKILL.md')));
-  assert.equal(existsSync(join(target, 'old.txt')), false);
-  assert.deepEqual(readdirSync(join(f.cwd, '.agents/skills')), ['code-smells']);
+test('repeated explicit Codex/Pi selections install each shared skill once', t => {
+  const f = fixture(t);
+  assert.equal(install({ ...f.options, argv: ['--agent', 'pi', '--agent', 'codex', '--agent', 'pi'] }), 0);
+  assert.equal(f.messages.filter(message => message.startsWith('Pi/Codex: installed')).length, 2);
+  assert.deepEqual(readdirSync(join(f.cwd, '.agents/skills')).sort(), ['code-smells', 'design-thinking']);
 });
 
 test('force replaces a symlink without modifying its original target', t => {

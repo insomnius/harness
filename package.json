@@ -2,7 +2,7 @@
   "name": "@insomnius/harness",
   "version": "0.1.0",
   "private": true,
-  "description": "Install Harness skills for Codex and Claude Code",
+  "description": "Install Harness skills for Codex, Claude Code, and Pi",
   "type": "module",
   "bin": {
     "harness-skills": "bin/harness.mjs"

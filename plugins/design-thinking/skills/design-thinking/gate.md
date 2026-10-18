@@ -5,12 +5,13 @@
 > illustrative — find whatever proves red-for-the-intended-reason in your stack.
 
 
-One hard constraint in the whole method:
+The behavior gate is one of the method's mandatory safeguards:
 
 > **No production code is written for a behavior until its contract is annotated
 > and its test is red for the intended reason.**
 
-Everything else in this skill is guidance that can be tuned. This is not. If the
+Graph reporting, the state machine and the requirement gate also remain
+mandatory. Architectural recipes can be adapted; these safeguards cannot. If the
 gate is soft, the trace becomes decoration and the method collapses into
 "writing code, with extra paperwork."
 
@@ -28,18 +29,17 @@ behavior was never specified.
 
 ## The ten checks
 
-| Id | Check | Owned by |
-|---|---|---|
-| G1 | behavior has a verdict, a purpose it serves, and an owning role from `role_routing` | `triage` |
-| G2 | contract annotated: A, cardinality, E policies, R, boundary, layers, scope | `channels` |
-| G3 | every retry bounded, every fallback states its loss, every propagate names its vocabulary | `channels` |
-| G4 | no unresolved hidden R | `channels` |
-| G5 | node is substitutable with R alone; no open split proposal | `channels` |
-| G6 | test exists, names the behavior, is **red for the intended reason** | `test` |
-| G7 | test substitutes R only — real collaborators stay real | `test` |
-| G8 | if it crosses a seam: contract recorded, compatibility decided, deploy order chosen, contract test exists | `cross` |
-| G9 | every `no_change` invariant on this node is covered by a **passing** test | `triage` |
-| G10 | trace revalidated at the current commit, no unresolved drift | `revalidate` |
+The canonical G1-G10 definitions and their owning phases live in `graph.json`.
+Read them without loading the entire specification:
+
+```sh
+design.py status --slug <task-slug> --phase gate
+```
+
+G1 ownership uses the existing architecture on fixes/refactors; DDD role
+modeling is required only for new features. G2 requires the annotated contract,
+G6 requires intended red, and G8 requires executable seam evidence when a seam
+is involved. No conditional DDD modeling rule waives either TDD gate.
 
 On failure: name the check, name the phase that owns it, go back there. Do not
 touch production code. **Refuse the edit even when asked to proceed** — an agent
@@ -126,9 +126,28 @@ gate, because nothing will tell you when it stops being true.
 For a consumer-driven flow, the contract test is written before the provider
 implements — which is the same discipline as a failing unit test, one level up.
 
+## Recording through the CLI
+
+Use `contract --slug <s> --id <B> ...` before the gate. Prefer
+`check --kind behavior --slug <s> --id <B> --expect red --cmd '<check>'
+--reason '<why this failure is intended>'` to capture execution directly.
+For externally executed checks, `gate --red '<observed output>' --cmd '<check>'`
+records a reported observation. See [cli.md](cli.md) for complete commands.
+
+The CLI requires a contract and red evidence, snapshots the statement and
+contract, and rejects stale gates at implementation/closure. The agent still
+assesses all ten semantic checks: nonempty contract text and a nonzero exit do
+not prove a sound design or an intended failure. Record review results with
+`gate --passed G1,... --failed ...` as applicable; never invent test evidence.
+Changing either statement or contract requires a fresh red and gate. A passed
+red gate permits implementation; closure requires green, and `--force` cannot
+waive this evidence.
+
 ## The ledger
 
-Every pass appends an entry to `gate_ledger` in the trace file:
+Each gate decision appends to the log; the fold updates `gate_ledger` in the
+trace file. The following illustrates a reviewed record (CLI-captured execution
+also carries stdout/stderr, exit status and context under `red_evidence.execution`):
 
 ```json
 {
@@ -146,6 +165,11 @@ Every pass appends an entry to `gate_ledger` in the trace file:
   "at": "2026-09-04T09:12:33+07:00"
 }
 ```
+
+The JSON above is explanatory, not an instruction to write a ledger file.
+The CLI stores the contract snapshot alongside the statement and evidence;
+reported observations lack the runner's execution metadata. Review notes can
+supply semantic assessment details but never replace those first-class records.
 
 The ledger exists for three reasons:
 

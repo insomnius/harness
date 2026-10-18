@@ -1,5 +1,10 @@
 # Translating a requirement into the domain
 
+**Load for new-feature development only.** Model only the new capability's
+needed terms, ownership and boundaries. Fixes, refactors, migrations,
+infrastructure and documentation reuse existing terminology and ownership;
+they do not require this DDD modeling exercise. Graph and TDD remain mandatory.
+
 > **Illustrative, not normative.** Translating before searching, one term one
 > meaning, invariants versus sequences, consistency boundaries and investment
 > following subdomain are principles (`principles.md` 17-20, 17b). The greps and
@@ -248,8 +253,11 @@ while doing *this* task, at a commit:
 - `requirement_restatements[]` — each requirement in the ubiquitous language,
   with its owning role
 
-Recorded through `design.py term` and `design.py own`, which append to the
-decision log; the snapshot is a fold over it.
+Record glossary terms through `design.py term` and ownership through
+`design.py own`. Use `note --phase language --json '...'` for richer phase
+outputs such as context findings; these remain supplemental phase notes,
+not automatically populated model fields. All commands append to the log.
+See [cli.md](cli.md); never write a script to populate the model JSON.
 
 **It is a record, not a document.** A later task never edits it — it captures
 its own. Recall across tasks is `index.md`, derived from every snapshot on every

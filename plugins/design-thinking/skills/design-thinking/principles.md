@@ -2,7 +2,11 @@
 
 The method, with no tools in it. Everything in the other reference files is an
 illustration of one of these in some stack; when an illustration conflicts with
-a principle, the principle wins.
+a principle, the principle wins. Phase applicability in `graph.json` determines
+when a principle is exercised: DDD modeling (the Meaning section's aggregate,
+context and subdomain work) applies to new features only. Other changes reuse
+existing vocabulary and ownership. Graph reports, A/E/R contracts, state-machine
+transitions and both TDD gates apply to every implementation task.
 
 ## Work
 
@@ -171,8 +175,8 @@ second is what breaks during a partial rollout and a rollback.
 
 **26. Specify before building, at both altitudes.** No work on a requirement
 without a red check for it. No code for a behavior without its contract
-annotated and its test red. These two are constraints; everything else here is
-guidance.
+annotated and its test red. These two gates, graph reporting and the
+state-machine protocol are mandatory; architectural recipes are guidance.
 
 **27. Red for the intended reason.** A check failing because the harness is
 broken or the suite will not build proves nothing. Know what was already red
@@ -206,8 +210,8 @@ dependencies are visible. A flat list of touched files hides the structure the
 whole method is built on, and hides the edit order with it. Prose explains the
 tree; it does not replace it.
 
-**31b. One source of truth; every view is rendered.** The state files are the source;
-the tree, the diagram and the index are drawn from them on every write and never
+**31b. One source of truth; every view is rendered.** The append-only decision log
+is the source; state files, the tree, the diagram and the index are derived on every write and never
 maintained by hand. A view somebody edits is a second source, and the moment the two
 disagree the map is lying while the code stands still. This is also why recall across
 tasks is an index that is regenerated rather than a document that is updated.

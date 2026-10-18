@@ -1,6 +1,6 @@
 # design-thinking
 
-A Claude Code skill for changing existing systems. A ticket names a behavior;
+A portable agent skill for changing existing systems. A ticket names a behavior;
 the code is a graph; the work is finding which nodes the behavior touches,
 proving it, changing them in the right order, and keeping the map honest as it
 changes underneath you.
@@ -16,18 +16,18 @@ X  →  Y  →  Z          Y is the node in hand
 ## Three legs
 
 ```
-DDD          name the shapes           what exists, and what owns which rule
+DDD          new features only         vocabulary, ownership and boundaries
  ↓
 GRAPH        A · E · R                 how this change flows through it
  ↓
 TDD          red first, then code      proof that the behavior is what was claimed
 ```
 
-DDD says who owns a rule, so a change has a legal destination before anyone
-looks for a file. The graph says what this particular change touches, in the
-direction the system runs. TDD says the behavior is real, because a check that
-was red went green on its own. Skip the first and rules land wherever the trace
-happened to arrive; skip the last and "done" is an opinion.
+DDD modeling gives new features a vocabulary and an owner. Other changes reuse
+existing terminology and ownership without a DDD modeling exercise. Graph
+output, the state machine and red-first TDD are mandatory for every task.
+The short `SKILL.md` loads reference guidance only for the current phase;
+`design.py status` supplies questions, exit criteria and allowed transitions.
 
 ## Install
 
@@ -83,7 +83,8 @@ Decide through the CLI; read the folds. Use a descriptive, path-safe `--ref`
 such as `partial-refunds`; no external issue tracker is required.
 
 ```bash
-design.py init --ref partial-refunds --title "partial refunds"
+design.py init --ref partial-refunds --title "partial refunds" --kind feature
+design.py status
 design.py requirement --id R1 --statement "a partial refund below the balance succeeds"
 design.py acceptance  --id R1 --altitude http --cmd "go test ./acceptance -run Refund" \
   --red "expected 200 with status closed, got 422"
@@ -91,11 +92,16 @@ design.py task --id T1 --slug refund --requirement R1
 design.py node --slug refund --path order/service.go --role aggregate_root \
   --purpose "protects the invariant that refunds never exceed the balance" \
   --verdict change --depth 0 --evidence compiler
+design.py behavior --slug refund --id B5 --statement "a refund above balance is rejected" \
+  --path order/service.go --symbol RecordRefund --requirement R1 --status specified
+design.py contract --slug refund --id B5 --a "load -> check -> record" \
+  --e "InsufficientBalance: propagate" --r "repository" --boundary "HTTP parser" \
+  --layers "none" --scope "transaction context manager"
 design.py gate --slug refund --id B5 --red "expected InsufficientBalance, got <nil>"
 design.py log        # the decisions, and the reversals among them
 ```
 
-Each subcommand validates, appends one decision, re-folds and renders — so the
+Each mutating subcommand validates, appends one decision, re-folds and renders — so the
 status tree reaches the transcript on every change without anyone electing to
 print it. It refuses a verdict on a node with no purpose, a `no_change` with no
 stop reason, a reversal with no reason, a gate with no observed red evidence, an
@@ -112,7 +118,10 @@ green on its own — not because an agent judged the work complete. The harness
 follows from where the requirement is observable (browser, HTTP, CLI, event,
 pipeline, data), never from preference.
 
-Both gates are constraints. Everything else in the skill is tunable guidance.
+Both gates, graph output and the state-machine protocol are mandatory.
+Use the bundled CLI, never generated scripts or hand-edited state JSON. Prefer
+`check` for captured execution evidence; `gate`/`acceptance` accept reported
+observations for external checks. See [cli.md](cli.md) for commands and limits.
 
 ## Principles over recipes
 
@@ -174,7 +183,7 @@ tests. That chain is the only accepted evidence of done.
 |---|---|
 | `preflight` | establish available dependencies, baseline failures, and existing state |
 | `requirements` | split the ticket into verifiable expectations; register ambiguities |
-| `language` | translate into the ubiquitous language; classify each subdomain; give each behavior an owning role; map contexts |
+| `language` | new features: model needed vocabulary, ownership and contexts; other changes: reuse existing terms or record a skip |
 | **`acceptance`** | **requirement gate: an automated check for the requirement, red, before any work** |
 | `keyword` | derive search terms from the glossary, including dead aliases |
 | `locate` | seed nodes from search hits |
@@ -200,11 +209,14 @@ and `gate` before any code is written for it.
 
 | File | Contents |
 |---|---|
-| `SKILL.md` | the skill Claude Code loads: rules, protocol, reporting |
+| `SKILL.md` | short entry point with mandatory discipline and reference loading triggers |
+| `cli.md` | supported writer, status guidance, contracts, notes and captured checks |
+| `reporting.md` | compact mandatory graph-report guidance |
+| `scripts/workflow.py` | reads canonical phases and transitions from graph.json |
 | `principles.md` | the method in 43 tool-free statements — precedence over all the rest |
 | `loop.md` | the loop, both gates, harness selection, the check manifest, the stop condition |
-| `graph.json` | phases, tiers, stop conditions, schemas. Edit this to tune the method |
-| `gate.md` | the ten checks, red-for-the-right-reason per language, the ledger |
+| `graph.json` | canonical phases, transitions, guards and schemas; read-only during ordinary task work |
+| `gate.md` | how to assess the canonical gate checks, intended red and the ledger |
 | `shapes.md` | records/ids/variants/errors, A/E/R, boundary, layers, scope, per language |
 | `domain.md` | ubiquitous language, subdomains, aggregates, the role taxonomy, events, context map |
 | `tracing.md` | evidence tiers, cross-language edges, reading purpose off existing code |
@@ -227,8 +239,9 @@ Claude hook stays at the plugin root. See INSTALL.md for current instructions.
 
 ## No lanes, no dials
 
-Nothing here is a threshold to tune. Every decision that looked like a setting
-derives from a property of the change instead:
+Applicability follows the work: `init --kind feature` enables DDD modeling;
+other kinds reuse existing ownership. Neither changes graph/TDD obligations.
+Traversal decisions derive from properties of the change:
 
 | Instead of | The rule |
 |---|---|

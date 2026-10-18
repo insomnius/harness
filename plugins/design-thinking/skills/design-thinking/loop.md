@@ -121,7 +121,23 @@ await page.waitForTimeout(2000);   // a sleep is a flake with a delay
 
 ## The check manifest
 
-Recorded at `acceptance`, red first, because the requirement gate needs a check
+Prefer the bundled runner to capture command output and exit status directly:
+
+```sh
+design.py check --kind acceptance --id R1 --expect red --cmd '<check>' \
+  --reason '<why the observed failure is the intended missing behavior>'
+# After implementation, reuse the same command:
+design.py check --kind acceptance --id R1 --expect green
+```
+
+Use `check --kind baseline --cmd '<suite>'` for inherited failures and
+`note --phase preflight --json '{"baseline_failures": [...]}'` for their
+reviewed classification (replace `...` with actual JSON values). The runner
+stores baseline executions in `check_runs`; it does not infer failure causes.
+See [cli.md](cli.md) for behavior contracts, green checks and state commands.
+The raw observations below remain useful for externally executed checks.
+
+Acceptance is recorded at `acceptance`, red first, because the requirement gate needs a check
 that failed before any code:
 
 ```bash
@@ -144,6 +160,11 @@ the agent improvising one. Never edit the fold — the next append rebuilds it:
   "baseline_failures": []
 }
 ```
+
+The manifest above illustrates the desired check layers, not fields to
+hand-edit into a fold. The CLI populates acceptance commands through
+`acceptance`/`check`; record other layer commands as supplemental phase outputs
+with `note`, and baseline executions with `check --kind baseline`.
 
 `baseline_failures` is what was already red before the work started. Without
 it, an inherited failure reads as your own and a real failure hides in the
@@ -217,7 +238,8 @@ requirement, not about the code.
 
 ## What the loop carries forward
 
-Each turn updates the glossary, the context map and the vocabulary map, and each
+New-feature work updates its needed glossary, context map and vocabulary map;
+other work reuses existing terminology and ownership. Each
 of those makes the next turn's `keyword` phase land faster. That compounding is
 the argument for running the loop rather than working ad hoc: the second
 requirement in a ticket is cheaper than the first, and the tenth ticket in a
