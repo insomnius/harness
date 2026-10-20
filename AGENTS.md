@@ -9,6 +9,8 @@ provides an installer with no runtime dependencies or build step.
 - `README.md`: user-facing overview, installation, and development commands.
 - `package.json`, `bin/harness.mjs`: executable `npx` installer and package contents.
 - `tests/install.test.mjs`: installer behavior and packaging checks.
+- `bin/frontend-security.mjs`, `tools/frontend-security/`: standalone deterministic checker; not a skill/plugin. Project configurations stay in target projects. The launcher requires explicit `--config`, resolves it before switching to a trusted cwd, and does not build, modify, or deploy targets.
+- `tests/security.test.mjs`: checker launcher and packaging contract; `bun run test:security` runs scanner/configuration tests using synthetic data and mocked Docker.
 - `.claude-plugin/marketplace.json`: Claude Code marketplace entries.
 - `plugins/<name>/.claude-plugin/plugin.json`: Claude Code plugin metadata.
 - `plugins/<name>/.codex-plugin/plugin.json`: Codex plugin metadata.

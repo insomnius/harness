@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "maxFileMiB": 64,
+  "timeoutMs": 8000,
+  "compareEnv": [],
+  "publicEnv": [],
+  "targets": [
+    {"name": "app", "root": "dist"}
+  ]
+}

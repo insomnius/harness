@@ -150,6 +150,27 @@ current project; `-g` selects your user directory. See the
 [Skills CLI documentation](https://skills.sh/docs/cli) for other supported agents
 and installation options. Installation was tested with `skills@1.7.2`.
 
+## Standalone frontend security checker
+
+Harness also includes a deterministic script, separate from its agent skills. No agent, model or skill installation is required. It uses fixed rules and explicit project configuration to scan public builds for private files, known environment values, credential formats and source maps. No automatic fixes or deployment.
+
+From this checkout, copy the example into your project and configure its actual public output paths:
+
+```sh
+cp tools/frontend-security/frontend-security.config.example.json /path/to/project/frontend-security.config.json
+bun run security:check --config /path/to/project/frontend-security.config.json
+```
+
+Requires Bun 1.3+ for the checker; the skill installer remains Node.js-only. Normal checks are local/read-only. Add `--live` only with permission to probe the project's configured owned origins. Exit codes are `0` passed, `1` findings, `2` incomplete/error; both nonzero codes fail CI. Results depend on the supplied artifacts, configuration, environment and, in live mode, HTTP responses—not model judgment. A passed scoped scan is not an exhaustive security guarantee.
+
+The executable is packaged as `frontend-security`. After these changes are pushed, it can also be invoked with `npx --yes --package=github:insomnius/harness frontend-security --config /path/to/project/frontend-security.config.json`. Until then use the local checkout command above.
+
+```sh
+bun run test:security
+```
+
+See [the tool README](tools/frontend-security/README.md) for the versioned configuration, redacted JSON reports, coverage limits and optional explicitly authorized Docker comparisons. Project-specific policies stay in their projects; Harness contains no production targets or real credentials.
+
 ## design-thinking
 
 **Understand which behavior needs to change, where it belongs, and how to prove
@@ -300,6 +321,7 @@ commands with:
 
 ```sh
 npm test
+bun run test:security
 node bin/harness.mjs --dry-run
 ```
 

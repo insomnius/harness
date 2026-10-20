@@ -5,10 +5,16 @@
   "description": "Install Harness skills for Codex, Claude Code, and Pi",
   "type": "module",
   "bin": {
-    "harness-skills": "bin/harness.mjs"
+    "harness-skills": "bin/harness.mjs",
+    "harness": "bin/harness.mjs",
+    "frontend-security": "bin/frontend-security.mjs"
   },
   "files": [
     "bin/",
+    "tools/frontend-security/**",
+    "!tools/**/__pycache__/**",
+    "!tools/**/*.py[cod]",
+    "!tools/**/.DS_Store",
     ".claude-plugin/marketplace.json",
     "plugins/*/skills/**",
     "!plugins/**/__pycache__/**",
@@ -20,7 +26,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test tests/install.test.mjs"
+    "test": "node --test tests/install.test.mjs tests/security.test.mjs",
+    "test:security": "bun test tools/frontend-security/tests",
+    "security:check": "node bin/frontend-security.mjs"
   },
   "repository": {
     "type": "git",

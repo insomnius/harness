@@ -1,0 +1,11 @@
+{
+  "name": "frontend-security",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "bun scripts/check.ts",
+    "check:live": "bun scripts/check.ts --live",
+    "test": "bun test tests"
+  }
+}
